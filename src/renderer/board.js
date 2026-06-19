@@ -13,6 +13,23 @@ export function renderGrid(gridEl, cells, onClick) {
   });
 }
 
+export function renderGridWithHighlights(gridEl, cells, highlightedIndices, onClick) {
+  const highlightSet = new Set(highlightedIndices);
+  
+  gridEl.innerHTML = cells
+    .map(
+      (cell, i) => {
+        const highlighted = highlightSet.has(i);
+        return `<div class="cell ${cell.type}${cell.polluted ? ' polluted' : ''}${highlighted ? ' highlighted' : ''}" data-i="${i}"><span>${ICONS[cell.type]}</span></div>`;
+      }
+    )
+    .join('');
+
+  gridEl.querySelectorAll('.cell').forEach(cell => {
+    cell.onclick = () => onClick(Number(cell.dataset.i));
+  });
+}
+
 export function renderStats(game, scene) {
   document.querySelector('#turnText').textContent = `${game.turn} / ${scene.turns}`;
   document.querySelector('#budgetText').textContent = game.budget;

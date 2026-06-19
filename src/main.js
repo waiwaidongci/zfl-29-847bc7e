@@ -24,8 +24,16 @@ import {
   renderGrid,
   renderStats,
   renderLog,
-  renderToolButtons
+  renderToolButtons,
+  renderGridWithHighlights
 } from './renderer/board.js';
+import { generateAdvice } from './game/advisor.js';
+import {
+  renderAdvisor,
+  setHighlightCallback,
+  setApplySuggestionCallback,
+  clearHighlights
+} from './ui/advisor.js';
 import {
   createEditorState,
   resetEditorState,
@@ -63,6 +71,7 @@ import {
 
 const gridEl = document.querySelector('#grid');
 const logEl = document.querySelector('#log');
+const advisorEl = document.querySelector('#advisor');
 const overlay = document.querySelector('#overlay');
 const sceneOverlay = document.querySelector('#sceneOverlay');
 const sceneListEl = document.querySelector('#sceneList');
@@ -87,6 +96,9 @@ const challengeGenBtn = document.querySelector('#challengeGenBtn');
 const challengeCopyBtn = document.querySelector('#challengeCopyBtn');
 const challengeGenErrorEl = document.querySelector('#challengeGenError');
 
+let highlightedCells = [];
+let currentAdvice = null;
+
 let currentSceneId = DEFAULT_SCENE_ID;
 let selectedSceneId = DEFAULT_SCENE_ID;
 let currentTool = 'oyster';
@@ -97,10 +109,25 @@ let lastEventCount = 0;
 
 function fullRender() {
   const scene = getScene(currentSceneId);
-  renderGrid(gridEl, game.cells, i => handlePlace(i));
+  if (highlightedCells.length > 0) {
+    renderGridWithHighlights(gridEl, game.cells, highlightedCells, i => handlePlace(i));
+  } else {
+    renderGrid(gridEl, game.cells, i => handlePlace(i));
+  }
   renderStats(game, scene);
   renderLog(logEl, game.log);
   renderToolButtons(currentTool);
+  updateAdvisor();
+}
+
+function updateAdvisor() {
+  if (!game || game.ended) {
+    renderAdvisor(advisorEl, null, game);
+    return;
+  }
+  const scene = getScene(currentSceneId);
+  currentAdvice = generateAdvice(game, scene);
+  renderAdvisor(advisorEl, currentAdvice, game);
 }
 
 function handlePlace(index) {
@@ -110,6 +137,49 @@ function handlePlace(index) {
       checkCumulativeAchievements(currentSceneId);
       updateAchievementsButton(achievementsBtn);
     }
+    clearHighlights();
+    highlightedCells = [];
+    fullRender();
+  }
+}
+
+function handleHighlight(cells, suggestion) {
+  highlightedCells = cells || [];
+  const scene = getScene(currentSceneId);
+  if (highlightedCells.length > 0) {
+    renderGridWithHighlights(gridEl, game.cells, highlightedCells, i => handlePlace(i));
+  } else {
+    renderGrid(gridEl, game.cells, i => handlePlace(i));
+  }
+}
+
+function handleApplySuggestion(suggestion) {
+  if (suggestion === 'refresh') {
+    updateAdvisor();
+    return;
+  }
+  
+  if (!suggestion || !suggestion.targetIndices && !suggestion.targetIndex) return;
+  
+  const targetIndices = suggestion.targetIndices || [suggestion.targetIndex];
+  const tool = suggestion.type;
+  const toolCost = COSTS[tool];
+  
+  let anyPlaced = false;
+  for (const index of targetIndices) {
+    if (game.budget >= toolCost) {
+      if (placeFacility(game, index, tool)) {
+        recordPlaceFacility(tool);
+        anyPlaced = true;
+      }
+    }
+  }
+  
+  if (anyPlaced) {
+    checkCumulativeAchievements(currentSceneId);
+    updateAchievementsButton(achievementsBtn);
+    clearHighlights();
+    highlightedCells = [];
     fullRender();
   }
 }
@@ -121,11 +191,15 @@ function startNewGame(sceneId) {
   lastEventCount = game.replay.events.length;
   updateSceneInfo(sceneInfoEl, scene.name);
   hideOverlay(overlay);
+  clearHighlights();
+  highlightedCells = [];
   fullRender();
 }
 
 function handleNextTurn() {
   if (game.ended) return;
+  clearHighlights();
+  highlightedCells = [];
   const scene = getScene(currentSceneId);
   const result = advanceTurn(game, scene);
 
@@ -499,6 +573,9 @@ function init() {
     updateAchievementsButton(achievementsBtn);
   });
   updateAchievementsButton(achievementsBtn);
+
+  setHighlightCallback(handleHighlight);
+  setApplySuggestionCallback(handleApplySuggestion);
 
   bindGlobalEvents();
   const defaultScene = getScene(DEFAULT_SCENE_ID);
