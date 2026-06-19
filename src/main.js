@@ -333,6 +333,7 @@ function recordToLeaderboard(game, scene, result) {
   const pollution = game.cells.filter(c => c.polluted).length;
   const duration = game.startTime ? Date.now() - game.startTime : null;
 
+  const now = Date.now();
   const currentEntry = {
     sceneId: scene.id,
     sceneName: scene.name,
@@ -344,7 +345,8 @@ function recordToLeaderboard(game, scene, result) {
     budget: game.budget,
     pollution,
     facilityCount,
-    duration
+    duration,
+    recordedAt: now
   };
 
   const comparison = getBestComparison(scene.id, game.seed, currentEntry);

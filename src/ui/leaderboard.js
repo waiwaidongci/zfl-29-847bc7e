@@ -42,7 +42,8 @@ function getAllSceneOptions() {
   const campaigns = getAllCampaigns();
   for (const c of campaigns) {
     for (const ch of c.chapters) {
-      options.push({ id: ch.id, name: `${c.name} - ${ch.name}`, category: 'campaign' });
+      const sceneId = `campaign_${c.id}_ch${ch.order}`;
+      options.push({ id: sceneId, name: `${c.name} - ${ch.name}`, category: 'campaign' });
     }
   }
 

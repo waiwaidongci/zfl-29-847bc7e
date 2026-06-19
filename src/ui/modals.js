@@ -112,8 +112,9 @@ export function renderBestComparison(lbResult) {
     ? 'bc-delta-zero'
     : deltaClass(-durationDelta, true);
 
-  const headerIcon = isBetter ? '🎉' : '📊';
-  const headerTitle = isBetter ? '新纪录！刷新了个人最佳' : '与个人最佳对比';
+  const isScoreRecord = delta.score > 0;
+  const headerIcon = isScoreRecord ? '🎉' : '📊';
+  const headerTitle = isScoreRecord ? '新纪录！刷新了个人最佳' : '与个人最佳对比';
 
   return `
     <div class="best-comparison">
