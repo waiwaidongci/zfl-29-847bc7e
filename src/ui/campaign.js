@@ -272,9 +272,9 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
   const resultIcon = result.win ? '🎉' : '💪';
 
   let nextActionHtml = '';
-  if (result.win && !isLastChapter) {
-    nextActionHtml = `<button class="campaign-next-btn">进入下一章</button>`;
-  } else if (result.win && isLastChapter) {
+  if (!isLastChapter) {
+    nextActionHtml = `<button class="campaign-next-btn">${result.win ? '进入下一章' : '继续下一章（含惩罚）'}</button>`;
+  } else if (result.win) {
     nextActionHtml = `<button class="campaign-next-btn">查看战役总结</button>`;
   }
 

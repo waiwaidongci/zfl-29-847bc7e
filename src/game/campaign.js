@@ -191,9 +191,15 @@ export function calculateCarryOver(chapter, gameResult) {
   if (!chapter.carryOver) return null;
 
   const co = chapter.carryOver;
-  const budgetCarry = Math.floor((gameResult.budget || 0) * co.budgetCarryRate);
+  let budgetCarry = 0;
+  let scoreBonus = 0;
+  
+  if (gameResult.win) {
+    budgetCarry = Math.floor((gameResult.budget || 0) * co.budgetCarryRate);
+    scoreBonus = (gameResult.score || 0) >= co.scoreBonusThreshold ? co.scoreBonusBudget : 0;
+  }
+  
   const pollutionResidue = Math.floor((gameResult.pollution || 0) * co.pollutionResidueRate);
-  const scoreBonus = (gameResult.score || 0) >= co.scoreBonusThreshold ? co.scoreBonusBudget : 0;
 
   const branchRewards = calculateBranchRewards(chapter, gameResult);
 
@@ -311,54 +317,41 @@ export function completeChapter(progress, chapterOrder, gameResult) {
 
   const nextOrder = chapterOrder + 1;
   if (nextOrder <= campaign.chapters.length) {
-    if (gameResult.win) {
-      const carryBudget = carryOver ? carryOver.budgetCarry : 0;
-      const carryPollution = carryOver ? carryOver.pollutionResidue : 0;
+    const carryBudget = carryOver ? carryOver.budgetCarry : 0;
+    const carryPollution = carryOver ? carryOver.pollutionResidue : 0;
 
-      const appliedRewards = [...branchRewards];
-      if (carryBudget > 0) {
+    const appliedRewards = [...branchRewards];
+    if (carryBudget > 0) {
+      appliedRewards.push({
+        type: BRANCH_REWARD_TYPES.BUDGET_CARRY,
+        value: carryBudget,
+        sources: ['预算结转']
+      });
+    }
+    if (carryPollution > 0) {
+      const existing = appliedRewards.find(r => r.type === BRANCH_REWARD_TYPES.POLLUTION_RESIDUE);
+      if (existing) {
+        existing.value += carryPollution;
+        existing.sources.push('污染残留结转');
+      } else {
         appliedRewards.push({
-          type: BRANCH_REWARD_TYPES.BUDGET_CARRY,
-          value: carryBudget,
-          sources: ['预算结转']
+          type: BRANCH_REWARD_TYPES.POLLUTION_RESIDUE,
+          value: carryPollution,
+          sources: ['污染残留结转']
         });
       }
-      if (carryPollution > 0) {
-        const existing = appliedRewards.find(r => r.type === BRANCH_REWARD_TYPES.POLLUTION_RESIDUE);
-        if (existing) {
-          existing.value += carryPollution;
-          existing.sources.push('污染残留结转');
-        } else {
-          appliedRewards.push({
-            type: BRANCH_REWARD_TYPES.POLLUTION_RESIDUE,
-            value: carryPollution,
-            sources: ['污染残留结转']
-          });
-        }
-      }
-
-      updated.chapters[nextOrder] = {
-        status: 'unlocked',
-        score: null,
-        pollutionResidue: carryPollution,
-        budgetCarry: carryBudget,
-        carryOverFrom: chapterOrder,
-        branchRewards: [],
-        appliedBranchRewards: appliedRewards
-      };
-      updated.currentChapterOrder = nextOrder;
-    } else {
-      if (!updated.chapters[nextOrder]) {
-        updated.chapters[nextOrder] = {
-          status: 'locked',
-          score: null,
-          pollutionResidue: 0,
-          budgetCarry: 0,
-          branchRewards: [],
-          appliedBranchRewards: []
-        };
-      }
     }
+
+    updated.chapters[nextOrder] = {
+      status: 'unlocked',
+      score: null,
+      pollutionResidue: carryPollution,
+      budgetCarry: carryBudget,
+      carryOverFrom: chapterOrder,
+      branchRewards: [],
+      appliedBranchRewards: appliedRewards
+    };
+    updated.currentChapterOrder = nextOrder;
   } else {
     updated.currentChapterOrder = chapterOrder;
   }
@@ -569,7 +562,6 @@ export function replayChapter(progress, chapterOrder) {
   updated.updatedAt = Date.now();
 
   updated.totalScore = Object.values(updated.chapters)
-    .filter(ch => ch.status === 'completed')
     .reduce((sum, ch) => sum + (ch.score || 0), 0);
 
   return updated;
