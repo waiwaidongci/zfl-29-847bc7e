@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>潮间带生态修复</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "PingFang SC", sans-serif; background: #eaf3f1; color: #1c2b2c; }
+    header { padding: 18px 24px; background: #fff; border-bottom: 1px solid #c9dbd8; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+    h1 { margin: 0; font-size: 26px; }
+    button { border: 0; border-radius: 8px; padding: 10px 13px; background: #237070; color: #fff; font-weight: 800; cursor: pointer; }
+    button.secondary { background: #617b78; }
+    .app { display: grid; grid-template-columns: 290px 1fr 300px; gap: 16px; padding: 16px; }
+    .panel, .stat { background: #fff; border: 1px solid #c9dbd8; border-radius: 8px; padding: 14px; }
+    .tools { display: grid; gap: 8px; }
+    .tools button.active { background: #c08d2d; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat strong { display: block; font-size: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; max-width: 900px; margin: 0 auto; }
+    .cell { aspect-ratio: 1; border: 1px solid #9fbfbb; border-radius: 5px; display: grid; place-items: center; font-weight: 900; cursor: pointer; background: #9ed1d0; position: relative; overflow: hidden; }
+    .cell.polluted::after { content: ""; position: absolute; inset: 0; background: rgba(104,82,58,.45); }
+    .cell.oyster { background: #d4d4c8; }
+    .cell.grass { background: #6eb77a; }
+    .cell.pile { background: #b89568; }
+    .cell span { position: relative; z-index: 1; }
+    .log { height: 260px; overflow: auto; display: flex; flex-direction: column-reverse; gap: 8px; }
+    .entry { background: #f3f8f7; border-left: 4px solid #237070; border-radius: 6px; padding: 8px; }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20,40,40,.42); }
+    .modal { width: min(430px, calc(100% - 28px)); background: #fff; border: 1px solid #c9dbd8; border-radius: 8px; padding: 22px; }
+    .hidden { display: none; }
+    @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>潮间带生态修复</h1><div>放置设施，控制污染，撑过10个潮汐周期。</div></div>
+    <button id="restartBtn">新开一局</button>
+  </header>
+  <main class="app">
+    <aside class="panel">
+      <h2>设施</h2>
+      <div class="tools">
+        <button data-tool="oyster" class="active">牡蛎礁 - 12预算</button>
+        <button data-tool="grass">海草床 - 10预算</button>
+        <button data-tool="pile">围护桩 - 8预算</button>
+        <button data-tool="erase" class="secondary">移除设施</button>
+      </div>
+      <p>牡蛎礁提升水质，海草床提升多样性，围护桩减缓污染扩散。</p>
+      <button id="nextBtn">推进潮汐</button>
+    </aside>
+    <section class="panel">
+      <div class="grid" id="grid"></div>
+    </section>
+    <aside class="panel">
+      <h2>生态指标</h2>
+      <div class="stats">
+        <div class="stat"><span>回合</span><strong id="turnText">1 / 10</strong></div>
+        <div class="stat"><span>预算</span><strong id="budgetText">120</strong></div>
+        <div class="stat"><span>水质</span><strong id="waterText">50</strong></div>
+        <div class="stat"><span>幼体</span><strong id="larvaeText">20</strong></div>
+        <div class="stat"><span>多样性</span><strong id="bioText">20</strong></div>
+        <div class="stat"><span>污染</span><strong id="pollutionText">0</strong></div>
+      </div>
+      <h2>日志</h2>
+      <div class="log" id="log"></div>
+    </aside>
+  </main>
+  <div class="overlay hidden" id="overlay">
+    <div class="modal">
+      <h2 id="resultTitle"></h2>
+      <p id="resultText"></p>
+      <button id="againBtn">再修复一次</button>
+    </div>
+  </div>
+  <script>
+    const gridEl = document.querySelector("#grid");
+    const logEl = document.querySelector("#log");
+    const overlay = document.querySelector("#overlay");
+    const resultTitle = document.querySelector("#resultTitle");
+    const resultText = document.querySelector("#resultText");
+    const costs = { oyster: 12, grass: 10, pile: 8, erase: 0 };
+    const icons = { oyster: "礁", grass: "草", pile: "桩", empty: "" };
+    let tool = "oyster";
+    let game;
+    function fresh() {
+      game = {
+        turn: 1, budget: 120, water: 50, larvae: 20, bio: 20, ended: false,
+        cells: Array.from({ length: 96 }, (_, i) => ({ type: "empty", polluted: i % 23 === 0 || i === 71 })),
+        log: ["第1潮，退潮露出修复区。"]
+      };
+      overlay.classList.add("hidden");
+      render();
+    }
+    function render() {
+      gridEl.innerHTML = game.cells.map((cell, i) => '<div class="cell '+cell.type+(cell.polluted?' polluted':'')+'" data-i="'+i+'"><span>'+icons[cell.type]+'</span></div>').join("");
+      document.querySelectorAll(".cell").forEach(cell => cell.onclick = () => place(Number(cell.dataset.i)));
+      document.querySelector("#turnText").textContent = game.turn + " / 10";
+      document.querySelector("#budgetText").textContent = game.budget;
+      document.querySelector("#waterText").textContent = Math.round(game.water);
+      document.querySelector("#larvaeText").textContent = Math.round(game.larvae);
+      document.querySelector("#bioText").textContent = Math.round(game.bio);
+      document.querySelector("#pollutionText").textContent = game.cells.filter(c => c.polluted).length;
+      logEl.innerHTML = game.log.map(item => '<div class="entry">'+item+'</div>').join("");
+      document.querySelectorAll("[data-tool]").forEach(btn => btn.classList.toggle("active", btn.dataset.tool === tool));
+    }
+    function place(i) {
+      if (game.ended) return;
+      const cell = game.cells[i];
+      if (tool === "erase") {
+        if (cell.type !== "empty") { cell.type = "empty"; game.log.unshift("移除了一处设施。"); }
+        render(); return;
+      }
+      if (cell.type !== "empty" || game.budget < costs[tool]) return;
+      cell.type = tool;
+      game.budget -= costs[tool];
+      game.log.unshift("放置" + (tool === "oyster" ? "牡蛎礁" : tool === "grass" ? "海草床" : "围护桩") + "。");
+      render();
+    }
+    function neighbors(i) {
+      const x = i % 12, y = Math.floor(i / 12);
+      return [[x-1,y],[x+1,y],[x,y-1],[x,y+1]].filter(([a,b]) => a>=0 && a<12 && b>=0 && b<8).map(([a,b]) => b*12+a);
+    }
+    function nextTurn() {
+      if (game.ended) return;
+      const oysters = game.cells.filter(c => c.type === "oyster").length;
+      const grass = game.cells.filter(c => c.type === "grass").length;
+      const piles = game.cells.filter(c => c.type === "pile").length;
+      const pollution = game.cells.filter(c => c.polluted).length;
+      game.water += oysters * 2.1 - pollution * .8;
+      game.larvae += oysters * 1.2 + grass * .6 - pollution * .4;
+      game.bio += grass * 1.8 + oysters * .4 - pollution * .5;
+      game.budget += 8;
+      spreadPollution(piles);
+      if (Math.random() < .24) storm();
+      game.water = clamp(game.water); game.larvae = clamp(game.larvae); game.bio = clamp(game.bio);
+      game.log.unshift("第"+game.turn+"潮结束：牡蛎礁"+oysters+"处，海草床"+grass+"处，围护桩"+piles+"处。");
+      if (game.turn >= 10) return finish();
+      game.turn += 1;
+      render();
+    }
+    function spreadPollution(piles) {
+      const newPolluted = new Set();
+      game.cells.forEach((cell, i) => {
+        if (!cell.polluted) return;
+        for (const n of neighbors(i)) {
+          if (game.cells[n].type === "pile") continue;
+          if (Math.random() < Math.max(.08, .28 - piles * .015)) newPolluted.add(n);
+        }
+      });
+      newPolluted.forEach(i => game.cells[i].polluted = true);
+      game.cells.forEach(cell => { if (cell.type === "oyster" && cell.polluted && Math.random() < .45) cell.polluted = false; });
+    }
+    function storm() {
+      const placed = game.cells.filter(c => c.type !== "empty");
+      if (placed.length && Math.random() < .55) placed[Math.floor(Math.random()*placed.length)].type = "empty";
+      game.water -= 8;
+      game.log.unshift("风暴潮冲刷了修复区，部分设施受损。");
+    }
+    function finish() {
+      game.ended = true;
+      const pollution = game.cells.filter(c => c.polluted).length;
+      const score = Math.round(game.water * .35 + game.larvae * .25 + game.bio * .35 + game.budget * .1 - pollution * 1.5);
+      resultTitle.textContent = score >= 65 ? "潮间带恢复良好" : "修复仍需加力";
+      resultText.textContent = "最终生态评分：" + score + "。水质" + Math.round(game.water) + "，幼体" + Math.round(game.larvae) + "，多样性" + Math.round(game.bio) + "。";
+      overlay.classList.remove("hidden");
+      render();
+    }
+    function clamp(v) { return Math.max(0, Math.min(100, v)); }
+    document.querySelectorAll("[data-tool]").forEach(btn => btn.onclick = () => { tool = btn.dataset.tool; render(); });
+    document.querySelector("#nextBtn").onclick = nextTurn;
+    document.querySelector("#restartBtn").onclick = fresh;
+    document.querySelector("#againBtn").onclick = fresh;
+    fresh();
+  </script>
+</body>
+</html>
