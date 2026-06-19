@@ -51,6 +51,13 @@ function cloneCells(cells) {
   return cells.map(cell => ({ ...cell }));
 }
 
+function serializeCells(cells) {
+  return cells.map(cell => ({
+    type: cell.type,
+    polluted: cell.polluted
+  }));
+}
+
 export function createGameState(scene, options) {
   const opts = options || {};
   let cells;
@@ -107,7 +114,8 @@ export function createGameState(scene, options) {
         budget: scene.budget,
         oysters,
         grass,
-        piles
+        piles,
+        cells: serializeCells(cells)
       }],
       events: [{
         turn: 1,
@@ -139,7 +147,8 @@ export function recordReplaySnapshot(game) {
     budget: game.budget,
     oysters,
     grass,
-    piles
+    piles,
+    cells: serializeCells(game.cells)
   });
 }
 

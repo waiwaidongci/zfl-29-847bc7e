@@ -1,5 +1,8 @@
 import { getAllScenes } from '../data/scenes.js';
-import { SANDBOX_EDITOR_ID } from '../game/constants.js';
+import { SANDBOX_EDITOR_ID, ICONS, GRID_COLS } from '../game/constants.js';
+
+let currentReplayTurnIndex = 0;
+let currentReplayData = null;
 
 export function renderSceneList(sceneListEl, selectedSceneId, onSelect) {
   const regularScenes = getAllScenes()
@@ -105,6 +108,211 @@ export function renderReplayView(game) {
   renderTrendChart(game.replay);
   renderStrategySummary(game.replay);
   renderEventTimeline(game.replay);
+  initTurnReplay(game.replay);
+}
+
+export function initTurnReplay(replay) {
+  currentReplayData = replay;
+  currentReplayTurnIndex = 0;
+
+  const snapshots = replay.snapshots;
+  if (!snapshots || snapshots.length === 0) return;
+
+  const turnSelect = document.querySelector('#replayTurnSelect');
+  const totalTurnsEl = document.querySelector('#replayTotalTurns');
+
+  if (turnSelect) {
+    turnSelect.innerHTML = snapshots.map((s, i) => 
+      `<option value="${i}">${s.turn}</option>`
+    ).join('');
+    turnSelect.onchange = () => {
+      currentReplayTurnIndex = parseInt(turnSelect.value, 10);
+      renderTurnReplay();
+    };
+  }
+
+  if (totalTurnsEl) {
+    totalTurnsEl.textContent = snapshots.length;
+  }
+
+  bindTurnReplayControls();
+  renderTurnReplay();
+}
+
+function bindTurnReplayControls() {
+  const firstBtn = document.querySelector('#replayFirstBtn');
+  const prevBtn = document.querySelector('#replayPrevBtn');
+  const nextBtn = document.querySelector('#replayNextBtn');
+  const lastBtn = document.querySelector('#replayLastBtn');
+
+  if (firstBtn) {
+    firstBtn.onclick = () => {
+      currentReplayTurnIndex = 0;
+      updateTurnSelectAndRender();
+    };
+  }
+  if (prevBtn) {
+    prevBtn.onclick = () => {
+      if (currentReplayTurnIndex > 0) {
+        currentReplayTurnIndex--;
+        updateTurnSelectAndRender();
+      }
+    };
+  }
+  if (nextBtn) {
+    nextBtn.onclick = () => {
+      const maxIndex = currentReplayData.snapshots.length - 1;
+      if (currentReplayTurnIndex < maxIndex) {
+        currentReplayTurnIndex++;
+        updateTurnSelectAndRender();
+      }
+    };
+  }
+  if (lastBtn) {
+    lastBtn.onclick = () => {
+      currentReplayTurnIndex = currentReplayData.snapshots.length - 1;
+      updateTurnSelectAndRender();
+    };
+  }
+}
+
+function updateTurnSelectAndRender() {
+  const turnSelect = document.querySelector('#replayTurnSelect');
+  if (turnSelect) {
+    turnSelect.value = currentReplayTurnIndex;
+  }
+  renderTurnReplay();
+}
+
+function renderTurnReplay() {
+  if (!currentReplayData) return;
+
+  const snapshot = currentReplayData.snapshots[currentReplayTurnIndex];
+  if (!snapshot) return;
+
+  renderReplayBoard(snapshot);
+  renderReplayStats(snapshot);
+  renderReplayTurnEvents(snapshot.turn);
+  updateReplayButtonStates();
+}
+
+function renderReplayBoard(snapshot) {
+  const boardEl = document.querySelector('#replayBoard');
+  if (!boardEl || !snapshot.cells) return;
+
+  boardEl.innerHTML = snapshot.cells
+    .map(
+      (cell, i) =>
+        `<div class="cell ${cell.type}${cell.polluted ? ' polluted' : ''}" data-i="${i}"><span>${ICONS[cell.type]}</span></div>`
+    )
+    .join('');
+}
+
+function renderReplayStats(snapshot) {
+  const statsEl = document.querySelector('#replayStats');
+  if (!statsEl) return;
+
+  const prevSnapshot = currentReplayTurnIndex > 0 
+    ? currentReplayData.snapshots[currentReplayTurnIndex - 1] 
+    : null;
+
+  const delta = (key) => {
+    if (!prevSnapshot) return '';
+    const diff = snapshot[key] - prevSnapshot[key];
+    if (diff === 0) return '';
+    const sign = diff > 0 ? '+' : '';
+    const colorClass = diff > 0 ? 'delta-pos' : 'delta-neg';
+    return ` <span class="${colorClass}">(${sign}${diff})</span>`;
+  };
+
+  statsEl.innerHTML = `
+    <div class="replay-stat">
+      <span class="replay-stat-label">回合</span>
+      <span class="replay-stat-value">${snapshot.turn}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">预算</span>
+      <span class="replay-stat-value">${snapshot.budget}${delta('budget')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">水质</span>
+      <span class="replay-stat-value">${snapshot.water}${delta('water')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">幼体</span>
+      <span class="replay-stat-value">${snapshot.larvae}${delta('larvae')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">多样性</span>
+      <span class="replay-stat-value">${snapshot.bio}${delta('bio')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">污染格</span>
+      <span class="replay-stat-value">${snapshot.pollution}${delta('pollution')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">牡蛎礁</span>
+      <span class="replay-stat-value">${snapshot.oysters}${delta('oysters')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">海草床</span>
+      <span class="replay-stat-value">${snapshot.grass}${delta('grass')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">围护桩</span>
+      <span class="replay-stat-value">${snapshot.piles}${delta('piles')}</span>
+    </div>
+  `;
+}
+
+function renderReplayTurnEvents(turn) {
+  const eventsEl = document.querySelector('#replayTurnEvents');
+  if (!eventsEl || !currentReplayData.events) return;
+
+  const turnEvents = currentReplayData.events.filter(e => e.turn === turn);
+
+  const eventIcons = {
+    start: { icon: '🌊', label: '开局' },
+    place: { icon: '🔧', label: '放置' },
+    remove: { icon: '🗑️', label: '移除' },
+    storm: { icon: '⛈️', label: '风暴' },
+    pollution_spread: { icon: '☣️', label: '扩散' },
+    oyster_clean: { icon: '💧', label: '净化' },
+    turn_end: { icon: '🌙', label: '结算' },
+    win: { icon: '🏆', label: '胜利' },
+    lose: { icon: '📉', label: '失败' }
+  };
+
+  if (turnEvents.length === 0) {
+    eventsEl.innerHTML = '<div class="replay-events-empty">本潮无关键事件</div>';
+    return;
+  }
+
+  eventsEl.innerHTML = turnEvents.map(ev => {
+    const meta = eventIcons[ev.type] || { icon: '📌', label: ev.type };
+    return `
+      <div class="replay-event-item replay-event-${ev.type}">
+        <span class="replay-event-icon">${meta.icon}</span>
+        <span class="replay-event-label">${meta.label}</span>
+        <span class="replay-event-message">${ev.message}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateReplayButtonStates() {
+  const firstBtn = document.querySelector('#replayFirstBtn');
+  const prevBtn = document.querySelector('#replayPrevBtn');
+  const nextBtn = document.querySelector('#replayNextBtn');
+  const lastBtn = document.querySelector('#replayLastBtn');
+
+  const isFirst = currentReplayTurnIndex === 0;
+  const isLast = currentReplayTurnIndex === currentReplayData.snapshots.length - 1;
+
+  if (firstBtn) firstBtn.disabled = isFirst;
+  if (prevBtn) prevBtn.disabled = isFirst;
+  if (nextBtn) nextBtn.disabled = isLast;
+  if (lastBtn) lastBtn.disabled = isLast;
 }
 
 function renderTrendChart(replay) {

@@ -61,6 +61,7 @@
       <div class="result-tabs">
         <button class="result-tab active" data-tab="result">结算结果</button>
         <button class="result-tab" data-tab="replay">对局复盘</button>
+        <button class="result-tab" data-tab="turnReplay">回合回放</button>
       </div>
       <div class="result-tab-content" id="resultTabContent">
         <h2 id="resultTitle"></h2>
@@ -82,6 +83,40 @@
           <div class="replay-section">
             <h3>🕒 事件时间线</h3>
             <div class="event-timeline" id="eventTimeline"></div>
+          </div>
+        </div>
+      </div>
+      <div class="result-tab-content hidden" id="turnReplayTabContent">
+        <div class="turn-replay-container">
+          <div class="turn-replay-header">
+          <div class="turn-replay-title">🔄 回合回放</div>
+          <div class="turn-replay-controls">
+            <button class="turn-replay-btn" id="replayFirstBtn" title="第一潮">⏮</button>
+            <button class="turn-replay-btn" id="replayPrevBtn" title="上一潮">◀</button>
+            <div class="turn-replay-turn-info">
+              <span>第</span>
+              <select id="replayTurnSelect"></select>
+              <span>潮 / 共 <strong id="replayTotalTurns">0</strong> 潮</span>
+            </div>
+            <button class="turn-replay-btn" id="replayNextBtn" title="下一潮">▶</button>
+            <button class="turn-replay-btn" id="replayLastBtn" title="最后潮">⏭</button>
+          </div>
+          </div>
+          <div class="turn-replay-content">
+            <div class="turn-replay-board-section">
+              <div class="turn-replay-section-title">棋盘状态</div>
+              <div class="turn-replay-grid" id="replayBoard"></div>
+            </div>
+            <div class="turn-replay-info-section">
+              <div class="turn-replay-section">
+                <div class="turn-replay-section-title">生态指标</div>
+                <div class="turn-replay-stats" id="replayStats"></div>
+              </div>
+              <div class="turn-replay-section">
+                <div class="turn-replay-section-title">本潮关键事件</div>
+                <div class="turn-replay-events" id="replayTurnEvents"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -8,6 +8,13 @@ import {
   getChapterCarryOverSummary,
   isCampaignComplete
 } from '../game/campaign.js';
+import { ICONS } from '../game/constants.js';
+
+let campaignReplayState = {
+  currentIndex: 0,
+  replayData: null,
+  overlayEl: null
+};
 
 export function renderCampaignList(containerEl, onSelect) {
   const campaigns = getAllCampaigns();
@@ -162,7 +169,7 @@ export function hideCampaignOverlay(overlayEl) {
   overlayEl.classList.add('hidden');
 }
 
-export function showCampaignResult(overlayEl, result, chapterName, isLastChapter, carryOver, actions) {
+export function showCampaignResult(overlayEl, result, chapterName, isLastChapter, carryOver, actions, replayData) {
   const resultClass = result.win ? 'campaign-result-win' : 'campaign-result-lose';
   const resultTitle = result.win ? '章节通过！' : '章节未通过';
   const resultIcon = result.win ? '🎉' : '💪';
@@ -198,25 +205,65 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
 
   overlayEl.innerHTML = `
     <div class="modal campaign-result-modal ${resultClass}">
-      <div class="campaign-result-icon">${resultIcon}</div>
-      <h2>${resultTitle}</h2>
-      <div class="campaign-result-chapter">${chapterName}</div>
-      <div class="campaign-result-stats">
-        <div class="campaign-result-stat">
-          <span>最终评分</span>
-          <strong>${result.score}</strong>
+      <div class="result-tabs">
+        <button class="result-tab active" data-tab="campaignResult">结算结果</button>
+        <button class="result-tab" data-tab="campaignTurnReplay">回合回放</button>
+      </div>
+      <div class="result-tab-content" id="campaignResultTabContent">
+        <div class="campaign-result-icon">${resultIcon}</div>
+        <h2>${resultTitle}</h2>
+        <div class="campaign-result-chapter">${chapterName}</div>
+        <div class="campaign-result-stats">
+          <div class="campaign-result-stat">
+            <span>最终评分</span>
+            <strong>${result.score}</strong>
+          </div>
+          <div class="campaign-result-stat">
+            <span>污染格</span>
+            <strong>${result.pollution}</strong>
+          </div>
+          <div class="campaign-result-stat">
+            <span>剩余预算</span>
+            <strong>${budgetValue}</strong>
+          </div>
         </div>
-        <div class="campaign-result-stat">
-          <span>污染格</span>
-          <strong>${result.pollution}</strong>
-        </div>
-        <div class="campaign-result-stat">
-          <span>剩余预算</span>
-          <strong>${budgetValue}</strong>
+        ${carryOverHtml}
+        <p class="campaign-result-text">${result.text}</p>
+      </div>
+      <div class="result-tab-content hidden" id="campaignTurnReplayTabContent">
+        <div class="turn-replay-container">
+          <div class="turn-replay-header">
+            <div class="turn-replay-title">🔄 回合回放</div>
+            <div class="turn-replay-controls">
+              <button class="turn-replay-btn" id="campaignReplayFirstBtn" title="第一潮">⏮</button>
+              <button class="turn-replay-btn" id="campaignReplayPrevBtn" title="上一潮">◀</button>
+              <div class="turn-replay-turn-info">
+                <span>第</span>
+                <select id="campaignReplayTurnSelect"></select>
+                <span>潮 / 共 <strong id="campaignReplayTotalTurns">0</strong> 潮</span>
+              </div>
+              <button class="turn-replay-btn" id="campaignReplayNextBtn" title="下一潮">▶</button>
+              <button class="turn-replay-btn" id="campaignReplayLastBtn" title="最后潮">⏭</button>
+            </div>
+          </div>
+          <div class="turn-replay-content">
+            <div class="turn-replay-board-section">
+              <div class="turn-replay-section-title">棋盘状态</div>
+              <div class="turn-replay-grid" id="campaignReplayBoard"></div>
+            </div>
+            <div class="turn-replay-info-section">
+              <div class="turn-replay-section">
+                <div class="turn-replay-section-title">生态指标</div>
+                <div class="turn-replay-stats" id="campaignReplayStats"></div>
+              </div>
+              <div class="turn-replay-section">
+                <div class="turn-replay-section-title">本潮关键事件</div>
+                <div class="turn-replay-events" id="campaignReplayTurnEvents"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      ${carryOverHtml}
-      <p class="campaign-result-text">${result.text}</p>
       <div class="campaign-result-actions">
         ${nextActionHtml}
         <button class="campaign-retry-btn secondary">重玩本章</button>
@@ -226,6 +273,20 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
   `;
 
   overlayEl.classList.remove('hidden');
+
+  overlayEl.querySelectorAll('.result-tab').forEach(btn => {
+    btn.onclick = () => {
+      const tab = btn.dataset.tab;
+      overlayEl.querySelectorAll('.result-tab').forEach(b => b.classList.toggle('active', b === btn));
+      overlayEl.querySelectorAll('.result-tab-content').forEach(el => {
+        el.classList.toggle('hidden', el.id !== tab + 'TabContent');
+      });
+    };
+  });
+
+  if (replayData) {
+    initCampaignTurnReplay(overlayEl, replayData);
+  }
 
   const nextBtn = overlayEl.querySelector('.campaign-next-btn');
   if (nextBtn) nextBtn.onclick = () => actions.next();
@@ -278,4 +339,220 @@ export function showCampaignSummary(overlayEl, campaignId, progress, callbacks) 
     overlayEl.classList.add('hidden');
     if (callbacks && callbacks.exit) callbacks.exit();
   };
+}
+
+function initCampaignTurnReplay(overlayEl, replayData) {
+  campaignReplayState = {
+    currentIndex: 0,
+    replayData,
+    overlayEl
+  };
+
+  const snapshots = replayData.snapshots;
+  if (!snapshots || snapshots.length === 0) return;
+
+  const turnSelect = overlayEl.querySelector('#campaignReplayTurnSelect');
+  const totalTurnsEl = overlayEl.querySelector('#campaignReplayTotalTurns');
+
+  if (turnSelect) {
+    turnSelect.innerHTML = snapshots.map((s, i) => 
+      `<option value="${i}">${s.turn}</option>`
+    ).join('');
+    turnSelect.onchange = () => {
+      campaignReplayState.currentIndex = parseInt(turnSelect.value, 10);
+      renderCampaignTurnReplay();
+    };
+  }
+
+  if (totalTurnsEl) {
+    totalTurnsEl.textContent = snapshots.length;
+  }
+
+  bindCampaignTurnReplayControls();
+  renderCampaignTurnReplay();
+}
+
+function bindCampaignTurnReplayControls() {
+  const { overlayEl } = campaignReplayState;
+
+  const firstBtn = overlayEl.querySelector('#campaignReplayFirstBtn');
+  const prevBtn = overlayEl.querySelector('#campaignReplayPrevBtn');
+  const nextBtn = overlayEl.querySelector('#campaignReplayNextBtn');
+  const lastBtn = overlayEl.querySelector('#campaignReplayLastBtn');
+
+  if (firstBtn) {
+    firstBtn.onclick = () => {
+      campaignReplayState.currentIndex = 0;
+      updateCampaignTurnSelectAndRender();
+    };
+  }
+  if (prevBtn) {
+    prevBtn.onclick = () => {
+      if (campaignReplayState.currentIndex > 0) {
+        campaignReplayState.currentIndex--;
+        updateCampaignTurnSelectAndRender();
+      }
+    };
+  }
+  if (nextBtn) {
+    nextBtn.onclick = () => {
+      const maxIndex = campaignReplayState.replayData.snapshots.length - 1;
+      if (campaignReplayState.currentIndex < maxIndex) {
+        campaignReplayState.currentIndex++;
+        updateCampaignTurnSelectAndRender();
+      }
+    };
+  }
+  if (lastBtn) {
+    lastBtn.onclick = () => {
+      campaignReplayState.currentIndex = campaignReplayState.replayData.snapshots.length - 1;
+      updateCampaignTurnSelectAndRender();
+    };
+  }
+}
+
+function updateCampaignTurnSelectAndRender() {
+  const { overlayEl } = campaignReplayState;
+  const turnSelect = overlayEl.querySelector('#campaignReplayTurnSelect');
+  if (turnSelect) {
+    turnSelect.value = campaignReplayState.currentIndex;
+  }
+  renderCampaignTurnReplay();
+}
+
+function renderCampaignTurnReplay() {
+  const { overlayEl, replayData, currentIndex } = campaignReplayState;
+  if (!replayData) return;
+
+  const snapshot = replayData.snapshots[currentIndex];
+  if (!snapshot) return;
+
+  renderCampaignReplayBoard(snapshot);
+  renderCampaignReplayStats(snapshot);
+  renderCampaignReplayTurnEvents(snapshot.turn);
+  updateCampaignReplayButtonStates();
+}
+
+function renderCampaignReplayBoard(snapshot) {
+  const { overlayEl } = campaignReplayState;
+  const boardEl = overlayEl.querySelector('#campaignReplayBoard');
+  if (!boardEl || !snapshot.cells) return;
+
+  boardEl.innerHTML = snapshot.cells
+    .map(
+      (cell, i) =>
+        `<div class="cell ${cell.type}${cell.polluted ? ' polluted' : ''}" data-i="${i}"><span>${ICONS[cell.type]}</span></div>`
+    )
+    .join('');
+}
+
+function renderCampaignReplayStats(snapshot) {
+  const { overlayEl, replayData, currentIndex } = campaignReplayState;
+  const statsEl = overlayEl.querySelector('#campaignReplayStats');
+  if (!statsEl) return;
+
+  const prevSnapshot = currentIndex > 0 
+    ? replayData.snapshots[currentIndex - 1] 
+    : null;
+
+  const delta = (key) => {
+    if (!prevSnapshot) return '';
+    const diff = snapshot[key] - prevSnapshot[key];
+    if (diff === 0) return '';
+    const sign = diff > 0 ? '+' : '';
+    const colorClass = diff > 0 ? 'delta-pos' : 'delta-neg';
+    return ` <span class="${colorClass}">(${sign}${diff})</span>`;
+  };
+
+  statsEl.innerHTML = `
+    <div class="replay-stat">
+      <span class="replay-stat-label">回合</span>
+      <span class="replay-stat-value">${snapshot.turn}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">预算</span>
+      <span class="replay-stat-value">${snapshot.budget}${delta('budget')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">水质</span>
+      <span class="replay-stat-value">${snapshot.water}${delta('water')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">幼体</span>
+      <span class="replay-stat-value">${snapshot.larvae}${delta('larvae')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">多样性</span>
+      <span class="replay-stat-value">${snapshot.bio}${delta('bio')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">污染格</span>
+      <span class="replay-stat-value">${snapshot.pollution}${delta('pollution')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">牡蛎礁</span>
+      <span class="replay-stat-value">${snapshot.oysters}${delta('oysters')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">海草床</span>
+      <span class="replay-stat-value">${snapshot.grass}${delta('grass')}</span>
+    </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">围护桩</span>
+      <span class="replay-stat-value">${snapshot.piles}${delta('piles')}</span>
+    </div>
+  `;
+}
+
+function renderCampaignReplayTurnEvents(turn) {
+  const { overlayEl, replayData } = campaignReplayState;
+  const eventsEl = overlayEl.querySelector('#campaignReplayTurnEvents');
+  if (!eventsEl || !replayData.events) return;
+
+  const turnEvents = replayData.events.filter(e => e.turn === turn);
+
+  const eventIcons = {
+    start: { icon: '🌊', label: '开局' },
+    place: { icon: '🔧', label: '放置' },
+    remove: { icon: '🗑️', label: '移除' },
+    storm: { icon: '⛈️', label: '风暴' },
+    pollution_spread: { icon: '☣️', label: '扩散' },
+    oyster_clean: { icon: '💧', label: '净化' },
+    turn_end: { icon: '🌙', label: '结算' },
+    win: { icon: '🏆', label: '胜利' },
+    lose: { icon: '📉', label: '失败' }
+  };
+
+  if (turnEvents.length === 0) {
+    eventsEl.innerHTML = '<div class="replay-events-empty">本潮无关键事件</div>';
+    return;
+  }
+
+  eventsEl.innerHTML = turnEvents.map(ev => {
+    const meta = eventIcons[ev.type] || { icon: '📌', label: ev.type };
+    return `
+      <div class="replay-event-item replay-event-${ev.type}">
+        <span class="replay-event-icon">${meta.icon}</span>
+        <span class="replay-event-label">${meta.label}</span>
+        <span class="replay-event-message">${ev.message}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateCampaignReplayButtonStates() {
+  const { overlayEl, replayData, currentIndex } = campaignReplayState;
+
+  const firstBtn = overlayEl.querySelector('#campaignReplayFirstBtn');
+  const prevBtn = overlayEl.querySelector('#campaignReplayPrevBtn');
+  const nextBtn = overlayEl.querySelector('#campaignReplayNextBtn');
+  const lastBtn = overlayEl.querySelector('#campaignReplayLastBtn');
+
+  const isFirst = currentIndex === 0;
+  const isLast = currentIndex === replayData.snapshots.length - 1;
+
+  if (firstBtn) firstBtn.disabled = isFirst;
+  if (prevBtn) prevBtn.disabled = isFirst;
+  if (nextBtn) nextBtn.disabled = isLast;
+  if (lastBtn) lastBtn.disabled = isLast;
 }

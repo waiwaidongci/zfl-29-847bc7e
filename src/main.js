@@ -995,7 +995,7 @@ function handleCampaignChapterEnd(result) {
       game = null;
       openSceneSelect();
     }
-  });
+  }, game.replay);
 }
 
 function openCampaignSelect() {
