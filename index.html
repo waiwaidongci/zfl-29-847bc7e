@@ -132,6 +132,11 @@
     <div class="modal editor-modal">
       <h2>沙盒编辑器</h2>
       <p>自定义你的修复区地图和游戏参数。配置完成后保存并开始模拟。</p>
+      <div class="editor-quick-actions">
+        <button id="templateLibBtn" class="secondary">📚 模板库</button>
+        <button id="draftBtn" class="secondary">💾 草稿箱</button>
+        <button id="saveDraftBtn" class="secondary">📝 保存草稿</button>
+      </div>
       <div class="editor-container">
         <div class="editor-tools" id="editorTools">
           <button data-edit="pollute" class="active">设置污染格</button>
@@ -185,6 +190,44 @@
         </div>
         <div class="error-tip" id="challengeGenError"></div>
       </div>
+
+      <div class="editor-panel hidden" id="templateLibPanel">
+        <div class="editor-panel-header">
+          <h3>📚 模板库</h3>
+          <button class="panel-close-btn secondary" data-close-panel="templateLibPanel">关闭</button>
+        </div>
+        <div class="template-tabs">
+          <button class="template-tab active" data-template-category="pollution">污染分布</button>
+          <button class="template-tab" data-template-category="facility">设施布局</button>
+        </div>
+        <div class="template-list" id="templateList"></div>
+      </div>
+
+      <div class="editor-panel hidden" id="draftPanel">
+        <div class="editor-panel-header">
+          <h3>💾 草稿箱</h3>
+          <button class="panel-close-btn secondary" data-close-panel="draftPanel">关闭</button>
+        </div>
+        <div class="draft-list" id="draftList"></div>
+        <div class="draft-empty hidden" id="draftEmpty">
+          暂无保存的草稿，编辑时点击"保存草稿"可保存当前进度。
+        </div>
+      </div>
+
+      <div class="editor-panel hidden" id="saveDraftPanel">
+        <div class="editor-panel-header">
+          <h3>📝 保存草稿</h3>
+          <button class="panel-close-btn secondary" data-close-panel="saveDraftPanel">取消</button>
+        </div>
+        <div class="save-draft-form">
+          <label>草稿名称（可选）</label>
+          <input type="text" id="draftNameInput" placeholder="留空将使用自动生成的名称">
+          <div class="save-draft-actions">
+            <button id="confirmSaveDraftBtn">保存</button>
+          </div>
+        </div>
+      </div>
+
       <div class="editor-actions">
         <button id="editorCancelBtn" class="secondary">取消</button>
         <button id="editorSaveBtn">保存并开始</button>

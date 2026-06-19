@@ -196,3 +196,26 @@ export function writeParamsToDOM(params) {
   document.querySelector('#paramStorm').value = params.stormChance;
   document.querySelector('#paramGoal').value = params.goalScore;
 }
+
+export function applyCellsAndParams(editorState, cells, params) {
+  editorState.cells = cells.map(c => ({ ...c }));
+  editorState.params = { ...params };
+  editorState.editTool = 'pollute';
+}
+
+export function serializeEditorState(editorState) {
+  return {
+    cells: editorState.cells.map(c => ({ ...c })),
+    params: { ...editorState.params }
+  };
+}
+
+export function deserializeToEditorState(editorState, data) {
+  if (data.cells) {
+    editorState.cells = data.cells.map(c => ({ ...c }));
+  }
+  if (data.params) {
+    editorState.params = { ...data.params };
+  }
+  editorState.editTool = 'pollute';
+}

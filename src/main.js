@@ -47,7 +47,8 @@ import {
   clearEditorError,
   buildSandboxScene,
   readParamsFromDOM,
-  writeParamsToDOM
+  writeParamsToDOM,
+  applyCellsAndParams
 } from './editor/sandbox.js';
 import {
   generateChallengeCode,
@@ -56,6 +57,20 @@ import {
   buildChallengeScene,
   applyDecodedToEditor
 } from './editor/challenge.js';
+import {
+  getAllTemplates,
+  getTemplatesByCategory,
+  applyTemplateToEditor,
+  validateTemplate
+} from './editor/templates.js';
+import {
+  loadDrafts,
+  saveDraft,
+  deleteDraft,
+  applyDraftToEditor,
+  validateDraft,
+  formatDraftPreview
+} from './editor/drafts.js';
 import { COSTS } from './game/constants.js';
 import { seedFromString } from './game/seeded-random.js';
 import {
@@ -137,6 +152,18 @@ const campaignContentEl = document.querySelector('#campaignContent');
 const storyOverlay = document.querySelector('#storyOverlay');
 const campaignResultOverlay = document.querySelector('#campaignResultOverlay');
 
+const templateLibBtn = document.querySelector('#templateLibBtn');
+const draftBtn = document.querySelector('#draftBtn');
+const saveDraftBtn = document.querySelector('#saveDraftBtn');
+const templateLibPanel = document.querySelector('#templateLibPanel');
+const draftPanel = document.querySelector('#draftPanel');
+const saveDraftPanel = document.querySelector('#saveDraftPanel');
+const templateListEl = document.querySelector('#templateList');
+const draftListEl = document.querySelector('#draftList');
+const draftEmptyEl = document.querySelector('#draftEmpty');
+const draftNameInput = document.querySelector('#draftNameInput');
+const confirmSaveDraftBtn = document.querySelector('#confirmSaveDraftBtn');
+
 let highlightedCells = [];
 let currentAdvice = null;
 
@@ -149,6 +176,7 @@ let parsedChallenge = null;
 let lastEventCount = 0;
 let campaignProgress = null;
 let campaignCurrentSceneConfig = null;
+let currentTemplateCategory = 'pollution';
 
 function getActiveScene() {
   if (game && game.gameMode === 'campaign' && campaignCurrentSceneConfig) {
@@ -557,9 +585,21 @@ function openSandboxEditor() {
   clearEditorError(editorErrorEl);
   clearChallengeGenError();
   challengeOutput.value = '';
+  closeAllEditorPanels();
   showEditorModal(editorOverlay, sceneOverlay);
   renderEditor();
   bindEditorEvents();
+  bindEditorPanelEvents();
+  
+  const drafts = loadDrafts();
+  if (drafts.length > 0 && confirm(`发现 ${drafts.length} 个已保存的草稿。是否加载最近的草稿继续编辑？`)) {
+    const latestDraft = drafts[0];
+    applyDraftToEditor(editorState, latestDraft);
+    writeParamsToDOM(editorState.params);
+    clearEditorError(editorErrorEl);
+    renderEditor();
+    showToast(`已加载草稿：${latestDraft.name}`);
+  }
 }
 
 function closeSandboxEditor() {
@@ -611,6 +651,224 @@ function bindEditorEvents() {
       editorState.params = params;
       updateEditorPreview()(editorState);
       clearEditorError(editorErrorEl);
+    };
+  });
+}
+
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+  
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      document.body.removeChild(toast);
+    }, 300);
+  }, 2000);
+}
+
+function closeAllEditorPanels() {
+  templateLibPanel.classList.add('hidden');
+  draftPanel.classList.add('hidden');
+  saveDraftPanel.classList.add('hidden');
+}
+
+function openTemplateLib() {
+  closeAllEditorPanels();
+  templateLibPanel.classList.remove('hidden');
+  renderTemplateList();
+  bindTemplateEvents();
+}
+
+function openDraftPanel() {
+  closeAllEditorPanels();
+  draftPanel.classList.remove('hidden');
+  renderDraftList();
+  bindDraftEvents();
+}
+
+function openSaveDraftPanel() {
+  closeAllEditorPanels();
+  saveDraftPanel.classList.remove('hidden');
+  draftNameInput.value = '';
+  draftNameInput.focus();
+}
+
+function renderTemplateList() {
+  const templates = getTemplatesByCategory(currentTemplateCategory);
+  
+  templateListEl.innerHTML = templates.map(template => {
+    const pollutionCount = template.cells.filter(c => c.polluted).length;
+    const facilityCount = template.cells.filter(c => c.type !== 'empty').length;
+    const categoryLabel = template.category === 'pollution' ? '污染分布' : '设施布局';
+    
+    return `
+      <div class="template-card" data-template-id="${template.id}">
+        <div class="template-card-header">
+          <span class="template-card-name">${template.name}</span>
+          <span class="template-card-category ${template.category}">${categoryLabel}</span>
+        </div>
+        <div class="template-card-desc">${template.desc}</div>
+        <div class="template-card-stats">
+          <span class="template-card-stat">污染 ${pollutionCount} 格</span>
+          <span class="template-card-stat">设施 ${facilityCount} 处</span>
+          <span class="template-card-stat">预算 ${template.params.budget}</span>
+          <span class="template-card-stat">${template.params.turns} 回合</span>
+          <span class="template-card-stat">风暴 ${Math.round(template.params.stormChance * 100)}%</span>
+          <span class="template-card-stat">目标 ${template.params.goalScore}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function bindTemplateEvents() {
+  document.querySelectorAll('.template-tab').forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll('.template-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentTemplateCategory = tab.dataset.templateCategory;
+      renderTemplateList();
+      bindTemplateCardEvents();
+    };
+  });
+  
+  bindTemplateCardEvents();
+}
+
+function bindTemplateCardEvents() {
+  templateListEl.querySelectorAll('.template-card').forEach(card => {
+    card.onclick = () => {
+      const templateId = card.dataset.templateId;
+      const template = getAllTemplates().find(t => t.id === templateId);
+      if (!template) return;
+      
+      const errors = validateTemplate(template);
+      if (errors.length > 0) {
+        showToast(`模板无效：${errors.join('；')}`, 'error');
+        return;
+      }
+      
+      applyTemplateToEditor(editorState, template);
+      writeParamsToDOM(editorState.params);
+      clearEditorError(editorErrorEl);
+      renderEditor();
+      closeAllEditorPanels();
+      showToast(`已套用模板：${template.name}`);
+    };
+  });
+}
+
+function renderDraftList() {
+  const drafts = loadDrafts();
+  
+  if (drafts.length === 0) {
+    draftListEl.innerHTML = '';
+    draftListEl.classList.add('hidden');
+    draftEmptyEl.classList.remove('hidden');
+    return;
+  }
+  
+  draftListEl.classList.remove('hidden');
+  draftEmptyEl.classList.add('hidden');
+  
+  draftListEl.innerHTML = drafts.map(draft => {
+    const preview = formatDraftPreview(draft);
+    const updatedDate = new Date(draft.updatedAt).toLocaleString('zh-CN');
+    
+    return `
+      <div class="draft-card" data-draft-id="${draft.id}">
+        <div class="draft-card-header">
+          <span class="draft-card-name">${draft.name}</span>
+          <span class="draft-card-date">${updatedDate}</span>
+        </div>
+        <div class="draft-card-stats">
+          <span class="draft-card-stat">污染 <strong>${preview.pollutionCount}</strong> 格</span>
+          <span class="draft-card-stat">设施 <strong>${preview.facilityCount}</strong> 处</span>
+          <span class="draft-card-stat">预算 <strong>${preview.budget}</strong></span>
+          <span class="draft-card-stat"><strong>${preview.turns}</strong> 回合</span>
+          <span class="draft-card-stat">风暴 <strong>${Math.round(preview.stormChance * 100)}%</strong></span>
+          <span class="draft-card-stat">目标 <strong>${preview.goalScore}</strong></span>
+        </div>
+        <div class="draft-card-actions">
+          <button class="load-draft-btn" data-draft-id="${draft.id}">加载</button>
+          <button class="delete-btn delete-draft-btn" data-draft-id="${draft.id}">删除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function bindDraftEvents() {
+  draftListEl.querySelectorAll('.load-draft-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const draftId = btn.dataset.draftId;
+      const drafts = loadDrafts();
+      const draft = drafts.find(d => d.id === draftId);
+      if (!draft) return;
+      
+      const errors = validateDraft(draft);
+      if (errors.length > 0) {
+        showToast(`草稿已损坏：${errors.join('；')}`, 'error');
+        return;
+      }
+      
+      applyDraftToEditor(editorState, draft);
+      writeParamsToDOM(editorState.params);
+      clearEditorError(editorErrorEl);
+      renderEditor();
+      closeAllEditorPanels();
+      showToast(`已加载草稿：${draft.name}`);
+    };
+  });
+  
+  draftListEl.querySelectorAll('.delete-draft-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const draftId = btn.dataset.draftId;
+      const drafts = loadDrafts();
+      const draft = drafts.find(d => d.id === draftId);
+      if (!draft) return;
+      
+      if (confirm(`确定要删除草稿"${draft.name}"吗？此操作不可撤销。`)) {
+        deleteDraft(draftId);
+        renderDraftList();
+        bindDraftEvents();
+        showToast(`已删除草稿：${draft.name}`);
+      }
+    };
+  });
+}
+
+function handleSaveDraft() {
+  const params = readParamsFromDOM();
+  editorState.params = params;
+  
+  const errors = validateEditorConfig(editorState);
+  if (errors.length > 0) {
+    showToast(`配置有误：${errors[0]}`, 'error');
+    return;
+  }
+  
+  const draftName = draftNameInput.value.trim();
+  const draft = saveDraft(editorState, draftName);
+  
+  closeAllEditorPanels();
+  showToast(`草稿已保存：${draft.name}`);
+}
+
+function bindEditorPanelEvents() {
+  document.querySelectorAll('[data-close-panel]').forEach(btn => {
+    btn.onclick = () => {
+      const panelId = btn.dataset.closePanel;
+      document.getElementById(panelId).classList.add('hidden');
     };
   });
 }
@@ -819,6 +1077,16 @@ function bindGlobalEvents() {
 
   challengeGenBtn.onclick = handleGenerateChallenge;
   challengeCopyBtn.onclick = handleCopyChallenge;
+
+  templateLibBtn.onclick = openTemplateLib;
+  draftBtn.onclick = openDraftPanel;
+  saveDraftBtn.onclick = openSaveDraftPanel;
+  confirmSaveDraftBtn.onclick = handleSaveDraft;
+  draftNameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleSaveDraft();
+  });
+
+  bindEditorPanelEvents();
 }
 
 function init() {
