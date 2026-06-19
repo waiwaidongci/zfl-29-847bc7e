@@ -69,6 +69,13 @@ export function getBranchRewardMeta(type) {
   return BRANCH_REWARD_META[type] || { label: type, icon: '📌', description: '', positive: true, format: (v) => String(v) };
 }
 
+function cloneBranchRewards(rewards) {
+  return (rewards || []).map(reward => ({
+    ...reward,
+    sources: [...(reward.sources || [])]
+  }));
+}
+
 function getScoreGrade(score, goalScore) {
   const ratio = score / Math.max(1, goalScore);
   if (ratio >= 1.5) return 'S';
@@ -193,12 +200,12 @@ export function calculateCarryOver(chapter, gameResult) {
   const co = chapter.carryOver;
   let budgetCarry = 0;
   let scoreBonus = 0;
-  
+
   if (gameResult.win) {
     budgetCarry = Math.floor((gameResult.budget || 0) * co.budgetCarryRate);
     scoreBonus = (gameResult.score || 0) >= co.scoreBonusThreshold ? co.scoreBonusBudget : 0;
   }
-  
+
   const pollutionResidue = Math.floor((gameResult.pollution || 0) * co.pollutionResidueRate);
 
   const branchRewards = calculateBranchRewards(chapter, gameResult);
@@ -296,7 +303,7 @@ export function completeChapter(progress, chapterOrder, gameResult) {
   if (!chapter) return progress;
 
   const carryOver = calculateCarryOver(chapter, gameResult);
-  const branchRewards = carryOver ? carryOver.branchRewards : [];
+  const branchRewards = carryOver ? cloneBranchRewards(carryOver.branchRewards) : [];
 
   const updated = JSON.parse(JSON.stringify(progress));
   updated.chapters[chapterOrder] = {
@@ -306,7 +313,7 @@ export function completeChapter(progress, chapterOrder, gameResult) {
     budgetCarry: carryOver ? carryOver.budgetCarry : 0,
     won: gameResult.win,
     grade: carryOver ? carryOver.grade : null,
-    branchRewards: branchRewards,
+    branchRewards: cloneBranchRewards(branchRewards),
     stormSurvived: gameResult.stormSurvived || false,
     stormDamaged: gameResult.stormDamaged || false,
     appliedBranchRewards: updated.chapters[chapterOrder]?.appliedBranchRewards || []
@@ -320,7 +327,7 @@ export function completeChapter(progress, chapterOrder, gameResult) {
     const carryBudget = carryOver ? carryOver.budgetCarry : 0;
     const carryPollution = carryOver ? carryOver.pollutionResidue : 0;
 
-    const appliedRewards = [...branchRewards];
+    const appliedRewards = cloneBranchRewards(branchRewards);
     if (carryBudget > 0) {
       appliedRewards.push({
         type: BRANCH_REWARD_TYPES.BUDGET_CARRY,
@@ -330,10 +337,7 @@ export function completeChapter(progress, chapterOrder, gameResult) {
     }
     if (carryPollution > 0) {
       const existing = appliedRewards.find(r => r.type === BRANCH_REWARD_TYPES.POLLUTION_RESIDUE);
-      if (existing) {
-        existing.value += carryPollution;
-        existing.sources.push('污染残留结转');
-      } else {
+      if (!existing) {
         appliedRewards.push({
           type: BRANCH_REWARD_TYPES.POLLUTION_RESIDUE,
           value: carryPollution,
