@@ -187,8 +187,8 @@ export const achievements = [
     type: 'game',
     check: (stats, game, scene) => {
       if (!game || !game.ended || !stats.lastWin) return false;
-      const oysters = game.cells.filter(c => c.type === 'oyster').length;
-      return oysters === 0;
+      const oysterPlaced = game.replay.events.some(e => e.type === 'place' && e.data && e.data.type === 'oyster');
+      return !oysterPlaced;
     }
   },
   {
@@ -237,10 +237,11 @@ export const achievements = [
     type: 'game',
     check: (stats, game, scene) => {
       if (!game || !game.ended || !stats.lastWin) return false;
-      const grass = game.cells.filter(c => c.type === 'grass').length;
-      const piles = game.cells.filter(c => c.type === 'pile').length;
-      const oysters = game.cells.filter(c => c.type === 'oyster').length;
-      return grass === 0 && piles === 0 && oysters > 0;
+      const placeEvents = game.replay.events.filter(e => e.type === 'place' && e.data);
+      if (placeEvents.length === 0) return false;
+      const hasOyster = placeEvents.some(e => e.data.type === 'oyster');
+      const hasOther = placeEvents.some(e => e.data.type === 'grass' || e.data.type === 'pile');
+      return hasOyster && !hasOther;
     }
   }
 ];

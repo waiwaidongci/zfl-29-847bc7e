@@ -107,7 +107,7 @@ function handlePlace(index) {
   if (placeFacility(game, index, currentTool)) {
     if (currentTool !== 'erase') {
       recordPlaceFacility(currentTool);
-      checkCumulativeAchievements();
+      checkCumulativeAchievements(currentSceneId);
       updateAchievementsButton(achievementsBtn);
     }
     fullRender();
@@ -139,7 +139,7 @@ function handleNextTurn() {
     }
   }
   lastEventCount = game.replay.events.length;
-  checkCumulativeAchievements();
+  checkCumulativeAchievements(currentSceneId);
   updateAchievementsButton(achievementsBtn);
 
   if (result.ended) {

@@ -158,13 +158,13 @@ export function checkGameEndAchievements(game, scene, win, score) {
   return newlyUnlocked;
 }
 
-export function checkCumulativeAchievements() {
+export function checkCumulativeAchievements(sceneId) {
   const newlyUnlocked = [];
   for (const achievement of achievements) {
     if (achievement.type === 'cumulative' && !isUnlocked(achievement.id)) {
       try {
         if (achievement.check(progressStats, null, null)) {
-          if (unlockAchievement(achievement.id, null)) {
+          if (unlockAchievement(achievement.id, sceneId || progressStats.lastSceneId)) {
             newlyUnlocked.push(achievement);
           }
         }
