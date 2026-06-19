@@ -162,7 +162,7 @@ export function hideCampaignOverlay(overlayEl) {
   overlayEl.classList.add('hidden');
 }
 
-export function showCampaignResult(overlayEl, result, chapterName, isLastChapter, actions) {
+export function showCampaignResult(overlayEl, result, chapterName, isLastChapter, carryOver, actions) {
   const resultClass = result.win ? 'campaign-result-win' : 'campaign-result-lose';
   const resultTitle = result.win ? '章节通过！' : '章节未通过';
   const resultIcon = result.win ? '🎉' : '💪';
@@ -173,6 +173,28 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
   } else if (result.win && isLastChapter) {
     nextActionHtml = `<button class="campaign-next-btn">查看战役总结</button>`;
   }
+
+  let carryOverHtml = '';
+  if (carryOver && result.win && !isLastChapter) {
+    const items = [];
+    if (carryOver.budgetCarry > 0) {
+      items.push(`<span class="carryover-item carryover-bonus">预算结转 +${carryOver.budgetCarry}</span>`);
+    }
+    if (carryOver.pollutionResidue > 0) {
+      items.push(`<span class="carryover-item carryover-penalty">污染残留 +${carryOver.pollutionResidue}格</span>`);
+    }
+    if (carryOver.budgetCarry <= 0 && carryOver.pollutionResidue <= 0) {
+      items.push(`<span class="carryover-item carryover-neutral">无额外继承</span>`);
+    }
+    carryOverHtml = `
+      <div class="campaign-carryover-preview">
+        <div class="carryover-label">下一章继承</div>
+        <div class="carryover-items">${items.join('')}</div>
+      </div>
+    `;
+  }
+
+  const budgetValue = result.budget != null ? result.budget : 0;
 
   overlayEl.innerHTML = `
     <div class="modal campaign-result-modal ${resultClass}">
@@ -190,9 +212,10 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
         </div>
         <div class="campaign-result-stat">
           <span>剩余预算</span>
-          <strong>${result.budget}</strong>
+          <strong>${budgetValue}</strong>
         </div>
       </div>
+      ${carryOverHtml}
       <p class="campaign-result-text">${result.text}</p>
       <div class="campaign-result-actions">
         ${nextActionHtml}

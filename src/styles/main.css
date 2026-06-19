@@ -639,6 +639,13 @@ button.secondary { background: #617b78; }
 .campaign-result-win .campaign-result-stat strong { color: #237070; }
 .campaign-result-lose .campaign-result-stat strong { color: #c0392b; }
 .campaign-result-text { font-size: 14px; color: #4a5f5d; line-height: 1.6; margin-bottom: 20px; text-align: left; }
+.campaign-carryover-preview { margin: 0 auto 14px; max-width: 320px; padding: 10px 14px; background: #fdf6e3; border: 1px solid #e8d9a8; border-radius: 8px; text-align: center; }
+.carryover-label { font-size: 12px; font-weight: 700; color: #8a6d1e; margin-bottom: 6px; }
+.carryover-items { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.carryover-item { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 10px; }
+.carryover-bonus { background: #e6f5ec; color: #1a5a3a; border: 1px solid #8ecfaa; }
+.carryover-penalty { background: #fdecea; color: #8b2f27; border: 1px solid #ecc4bf; }
+.carryover-neutral { background: #e8efed; color: #617b78; border: 1px solid #c9dbd8; }
 .campaign-result-actions { display: flex; gap: 8px; justify-content: center; }
 .campaign-next-btn { padding: 8px 20px; font-size: 14px; background: #c08d2d; }
 .campaign-retry-btn { padding: 8px 20px; font-size: 14px; }

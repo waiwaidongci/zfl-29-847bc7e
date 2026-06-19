@@ -75,6 +75,7 @@ export function finishGame(game, scene) {
     win,
     score,
     pollution,
+    budget: game.budget,
     title: win ? '修复成功' : '修复仍需加力',
     text: resultText
   };

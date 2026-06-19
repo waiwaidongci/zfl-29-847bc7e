@@ -88,7 +88,8 @@ import {
   getCampaignSceneConfig,
   completeChapter,
   replayChapter,
-  isCampaignComplete
+  isCampaignComplete,
+  calculateCarryOver
 } from './game/campaign.js';
 import {
   renderCampaignList,
@@ -674,38 +675,54 @@ function handleCampaignChapterEnd(result) {
     win: result.win,
     score: result.score,
     pollution: result.pollution,
-    budget: game.budget
+    budget: result.budget
   });
   saveCampaignProgress(campaignProgress);
 
   const isLastChapter = chapter.order >= campaign.chapters.length;
+  const carryOver = calculateCarryOver(chapter, {
+    win: result.win,
+    score: result.score,
+    pollution: result.pollution,
+    budget: result.budget
+  });
 
-  showCampaignResult(campaignResultOverlay, result, chapter.name, isLastChapter, {
+  showCampaignResult(campaignResultOverlay, result, chapter.name, isLastChapter, carryOver, {
     next: () => {
       campaignResultOverlay.classList.add('hidden');
 
-      if (isLastChapter && result.win) {
-        showCampaignSummary(campaignResultOverlay, campaignId, campaignProgress, {
-          restart: (cId) => {
-            campaignProgress = createCampaignProgress(cId);
-            saveCampaignProgress(campaignProgress);
-            openCampaignSelect();
-          },
-          exit: () => {
-            campaignProgress = null;
-            campaignCurrentSceneConfig = null;
-            game = null;
-            openSceneSelect();
-          }
-        });
-        return;
-      }
+      const proceedToNext = () => {
+        if (isLastChapter && result.win) {
+          showCampaignSummary(campaignResultOverlay, campaignId, campaignProgress, {
+            restart: (cId) => {
+              campaignProgress = createCampaignProgress(cId);
+              saveCampaignProgress(campaignProgress);
+              openCampaignSelect();
+            },
+            exit: () => {
+              campaignProgress = null;
+              campaignCurrentSceneConfig = null;
+              game = null;
+              openSceneSelect();
+            }
+          });
+          return;
+        }
 
-      const nextChapter = getChapterByOrder(campaignId, chapterOrder + 1);
-      if (nextChapter) {
-        renderStoryDialog(storyOverlay, nextChapter.name, nextChapter.storyIntro, '开始修复', () => {
-          startCampaignChapter(campaignId, chapterOrder + 1);
+        const nextChapter = getChapterByOrder(campaignId, chapterOrder + 1);
+        if (nextChapter) {
+          renderStoryDialog(storyOverlay, nextChapter.name, nextChapter.storyIntro, '开始修复', () => {
+            startCampaignChapter(campaignId, chapterOrder + 1);
+          });
+        }
+      };
+
+      if (chapter.storyOutro) {
+        renderStoryDialog(storyOverlay, chapter.name, chapter.storyOutro, '继续', () => {
+          proceedToNext();
         });
+      } else {
+        proceedToNext();
       }
     },
     retry: () => {
