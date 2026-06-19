@@ -6,6 +6,21 @@ import { advanceTurn } from './game/tide.js';
 import { loadCodexState, onUnlock } from './game/codex.js';
 import { showCodex, updateCodexButton } from './ui/codex.js';
 import {
+  loadAchievementsState,
+  onAchievementUnlock,
+  recordPlaceFacility,
+  recordCleanPollution,
+  recordStormSurvived,
+  checkGameEndAchievements,
+  checkCumulativeAchievements
+} from './game/achievements.js';
+import {
+  showAchievements,
+  updateAchievementsButton,
+  showAchievementToast,
+  onAchievementsReset
+} from './ui/achievements.js';
+import {
   renderGrid,
   renderStats,
   renderLog,
@@ -60,6 +75,8 @@ const editorToolsEl = document.querySelector('#editorTools');
 const editorErrorEl = document.querySelector('#editorError');
 const codexOverlay = document.querySelector('#codexOverlay');
 const codexBtn = document.querySelector('#codexBtn');
+const achievementsBtn = document.querySelector('#achievementsBtn');
+const achievementsOverlay = document.querySelector('#achievementsOverlay');
 const challengeInput = document.querySelector('#challengeInput');
 const challengeLoadBtn = document.querySelector('#challengeLoadBtn');
 const challengeStartBtn = document.querySelector('#challengeStartBtn');
@@ -76,6 +93,7 @@ let currentTool = 'oyster';
 let game = null;
 let editorState = createEditorState();
 let parsedChallenge = null;
+let lastEventCount = 0;
 
 function fullRender() {
   const scene = getScene(currentSceneId);
@@ -87,6 +105,11 @@ function fullRender() {
 
 function handlePlace(index) {
   if (placeFacility(game, index, currentTool)) {
+    if (currentTool !== 'erase') {
+      recordPlaceFacility(currentTool);
+      checkCumulativeAchievements();
+      updateAchievementsButton(achievementsBtn);
+    }
     fullRender();
   }
 }
@@ -95,6 +118,7 @@ function startNewGame(sceneId) {
   currentSceneId = sceneId;
   const scene = getScene(sceneId);
   game = createGameState(scene);
+  lastEventCount = game.replay.events.length;
   updateSceneInfo(sceneInfoEl, scene.name);
   hideOverlay(overlay);
   fullRender();
@@ -105,7 +129,24 @@ function handleNextTurn() {
   const scene = getScene(currentSceneId);
   const result = advanceTurn(game, scene);
 
+  const newEvents = game.replay.events.slice(lastEventCount);
+  for (const ev of newEvents) {
+    if (ev.type === 'storm' && ev.data && !ev.data.damaged) {
+      recordStormSurvived();
+    }
+    if (ev.type === 'oyster_clean' && ev.data && ev.data.count) {
+      recordCleanPollution(ev.data.count);
+    }
+  }
+  lastEventCount = game.replay.events.length;
+  checkCumulativeAchievements();
+  updateAchievementsButton(achievementsBtn);
+
   if (result.ended) {
+    const newlyUnlocked = checkGameEndAchievements(game, scene, result.win, result.score);
+    if (newlyUnlocked.length > 0) {
+      updateAchievementsButton(achievementsBtn);
+    }
     showResult(resultTitle, resultText, overlay, result.title, result.text);
     renderReplayView(game);
   }
@@ -429,6 +470,7 @@ function bindGlobalEvents() {
   document.querySelector('#editorCancelBtn').onclick = closeSandboxEditor;
   document.querySelector('#editorSaveBtn').onclick = saveAndStartSandbox;
   codexBtn.onclick = () => showCodex(codexOverlay);
+  achievementsBtn.onclick = () => showAchievements(achievementsOverlay);
 
   challengeLoadBtn.onclick = handleLoadChallenge;
   challengeStartBtn.onclick = handleStartChallenge;
@@ -447,6 +489,17 @@ function init() {
   loadCodexState();
   onUnlock(() => updateCodexButton(codexBtn));
   updateCodexButton(codexBtn);
+
+  loadAchievementsState();
+  onAchievementUnlock((achievement, info) => {
+    showAchievementToast(achievement, info);
+    updateAchievementsButton(achievementsBtn);
+  });
+  onAchievementsReset(() => {
+    updateAchievementsButton(achievementsBtn);
+  });
+  updateAchievementsButton(achievementsBtn);
+
   bindGlobalEvents();
   const defaultScene = getScene(DEFAULT_SCENE_ID);
   updateSceneInfo(sceneInfoEl, defaultScene.name);

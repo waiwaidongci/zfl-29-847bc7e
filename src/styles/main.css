@@ -185,3 +185,48 @@ button.secondary { background: #617b78; }
 .timeline-empty { padding: 30px; text-align: center; color: #8a9a98; font-size: 13px; }
 
 @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } .scene-list { grid-template-columns: 1fr; } .header-right { margin-top: 10px; } .editor-container { grid-template-columns: 1fr; } .codex-entry { flex-direction: column; } .codex-entry-diagram { width: 100%; min-width: unset; } .summary-grid { grid-template-columns: 1fr; } }
+
+.achievements-badge { display: inline-block; font-size: 11px; background: rgba(255,255,255,0.25); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+
+.achievements-modal { width: min(780px, calc(100% - 28px)); max-height: 85vh; display: flex; flex-direction: column; }
+.achievements-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.achievements-header h2 { margin: 0; flex: 1; }
+.achievements-progress-wrap { display: flex; align-items: center; gap: 10px; }
+.achievements-progress-bar { width: 140px; height: 10px; background: #e0eae8; border-radius: 5px; overflow: hidden; }
+.achievements-progress-fill { height: 100%; background: linear-gradient(90deg, #237070, #6eb77a); border-radius: 5px; transition: width .4s ease; }
+.achievements-progress-text { font-size: 12px; color: #4a5f5d; font-weight: 700; white-space: nowrap; }
+.achievements-close { padding: 4px 10px; font-size: 16px; }
+
+.achievements-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.achievements-tab { padding: 7px 14px; border-radius: 6px; background: #e8efed; color: #4a5f5d; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
+.achievements-tab.active { background: #c08d2d; color: #fff; border-color: #a37520; }
+.achievements-tab:hover:not(.active) { background: #d4e0dd; }
+
+.achievements-content { overflow-y: auto; flex: 1; }
+.achievements-cat-header { font-size: 13px; color: #4a5f5d; margin-bottom: 10px; padding: 6px 10px; background: #f3f8f7; border-radius: 6px; }
+.achievements-cat-header strong { color: #237070; }
+
+.achievements-list { display: grid; gap: 10px; }
+.achievement-entry { display: flex; gap: 14px; padding: 14px; background: #f3f8f7; border: 1px solid #c9dbd8; border-radius: 8px; position: relative; transition: all .2s; align-items: flex-start; }
+.achievement-entry.locked { opacity: 0.55; background: #f0f0f0; border-color: #ddd; }
+.achievement-icon { font-size: 32px; line-height: 1; min-width: 40px; text-align: center; padding-top: 2px; }
+.achievement-info { flex: 1; min-width: 0; }
+.achievement-info h3 { margin: 0 0 4px; font-size: 16px; color: #1c2b2c; }
+.achievement-entry.locked .achievement-info h3 { color: #999; }
+.achievement-info p { margin: 0; font-size: 13px; line-height: 1.5; color: #4a5f5d; }
+.achievement-meta { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; color: #617b78; }
+.achievement-meta span { background: #fff; padding: 2px 8px; border-radius: 10px; border: 1px solid #d9e7e5; }
+.achievement-unlocked-badge, .achievement-locked-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 10px; white-space: nowrap; }
+.achievement-unlocked-badge { background: #e6f5ec; color: #1a5a3a; border: 1px solid #8ecfaa; }
+.achievement-locked-badge { background: #eee; color: #888; border: 1px solid #ccc; }
+
+.achievements-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid #c9dbd8; display: flex; justify-content: space-between; align-items: center; }
+
+.achievement-toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.achievement-toast { display: flex; gap: 12px; padding: 14px 18px; background: linear-gradient(135deg, #fff8e6 0%, #fff 100%); border: 2px solid #c08d2d; border-radius: 10px; box-shadow: 0 6px 20px rgba(192,141,45,0.25); min-width: 280px; max-width: 360px; transform: translateX(420px); opacity: 0; transition: all .35s cubic-bezier(.4,0,.2,1); pointer-events: auto; }
+.achievement-toast.show { transform: translateX(0); opacity: 1; }
+.achievement-toast-icon { font-size: 36px; line-height: 1; }
+.achievement-toast-content { flex: 1; min-width: 0; }
+.achievement-toast-title { font-size: 11px; color: #c08d2d; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.achievement-toast-name { font-size: 16px; font-weight: 800; color: #1c2b2c; margin-bottom: 3px; }
+.achievement-toast-desc { font-size: 12px; color: #4a5f5d; line-height: 1.4; }
