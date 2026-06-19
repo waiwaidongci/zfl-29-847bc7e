@@ -40,7 +40,27 @@
     .scene-info { font-size: 13px; color: #4a5f5d; margin-left: 10px; }
     .header-right { display: flex; gap: 8px; align-items: center; }
     .hidden { display: none; }
-    @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } .scene-list { grid-template-columns: 1fr; } .header-right { margin-top: 10px; } }
+    .editor-modal { width: min(960px, calc(100% - 28px)); }
+    .editor-container { display: grid; grid-template-columns: 200px 1fr 240px; gap: 16px; }
+    .editor-tools { display: grid; gap: 8px; align-content: start; }
+    .editor-tools button { text-align: left; }
+    .editor-tools button.active { background: #c08d2d; }
+    .editor-params { display: grid; gap: 12px; align-content: start; }
+    .editor-params label { display: block; font-size: 13px; color: #4a5f5d; margin-bottom: 4px; }
+    .editor-params input { width: 100%; padding: 8px; border: 1px solid #c9dbd8; border-radius: 6px; font-size: 14px; }
+    .editor-params .param-help { font-size: 11px; color: #8a9a98; margin-top: 2px; }
+    .editor-preview { margin-top: 12px; padding: 12px; background: #f3f8f7; border-radius: 6px; font-size: 12px; }
+    .editor-preview h4 { margin: 0 0 8px; font-size: 14px; }
+    .editor-preview .preview-item { display: flex; justify-content: space-between; padding: 3px 0; }
+    .error-tip { color: #c0392b; font-size: 12px; margin-top: 4px; min-height: 18px; }
+    .error-tip.show { padding: 8px; background: #fdecea; border-radius: 4px; border-left: 3px solid #c0392b; }
+    .editor-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .editor-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+    .editor-grid .cell { cursor: crosshair; }
+    .editor-grid .cell.preview-pol::after { content: ""; position: absolute; inset: 0; background: rgba(196, 30, 30, 0.25); }
+    .editor-grid .cell.preview-obs::before { content: "?"; position: absolute; z-index: 2; color: rgba(0,0,0,0.3); font-size: 16px; }
+    .sandbox-tag { background: #c08d2d !important; color: #fff !important; }
+    @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } .scene-list { grid-template-columns: 1fr; } .header-right { margin-top: 10px; } .editor-container { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -97,6 +117,60 @@
       <div class="scene-list" id="sceneList"></div>
       <div style="text-align:right;">
         <button id="startSceneBtn">开始修复</button>
+      </div>
+    </div>
+  </div>
+  <div class="overlay hidden" id="editorOverlay">
+    <div class="modal editor-modal">
+      <h2>沙盒编辑器</h2>
+      <p>自定义你的修复区地图和游戏参数。配置完成后保存并开始模拟。</p>
+      <div class="editor-container">
+        <div class="editor-tools" id="editorTools">
+          <button data-edit="pollute" class="active">设置污染格</button>
+          <button data-edit="unpollute">清除污染格</button>
+          <button data-edit="oyster">初始：牡蛎礁 - 12</button>
+          <button data-edit="grass">初始：海草床 - 10</button>
+          <button data-edit="pile">初始：围护桩 - 8</button>
+          <button data-edit="erase" class="secondary">清除设施</button>
+          <button data-edit="clearAll" class="secondary">清空全部</button>
+        </div>
+        <div>
+          <div class="editor-grid" id="editorGrid"></div>
+        </div>
+        <div class="editor-params">
+          <div>
+            <label>初始预算</label>
+            <input type="number" id="paramBudget" value="120" min="0" step="10">
+            <div class="param-help">建议范围：50 - 300</div>
+          </div>
+          <div>
+            <label>回合上限</label>
+            <input type="number" id="paramTurns" value="10" min="1" max="30">
+            <div class="param-help">建议范围：5 - 20</div>
+          </div>
+          <div>
+            <label>风暴概率</label>
+            <input type="number" id="paramStorm" value="0.20" min="0" max="1" step="0.05">
+            <div class="param-help">范围：0 - 1（如 0.2 表示20%）</div>
+          </div>
+          <div>
+            <label>目标评分</label>
+            <input type="number" id="paramGoal" value="50" min="0" step="5">
+            <div class="param-help">达成此评分即修复成功</div>
+          </div>
+          <div class="editor-preview">
+            <h4>配置预览</h4>
+            <div class="preview-item"><span>污染格数</span><span id="previewPollution">0</span></div>
+            <div class="preview-item"><span>可修复区域</span><span id="previewRepairable">96</span></div>
+            <div class="preview-item"><span>初始设施</span><span id="previewFacilities">0</span></div>
+            <div class="preview-item"><span>初始设施花费</span><span id="previewCost">0</span></div>
+          </div>
+          <div class="error-tip" id="editorError"></div>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button id="editorCancelBtn" class="secondary">取消</button>
+        <button id="editorSaveBtn">保存并开始</button>
       </div>
     </div>
   </div>
@@ -174,8 +248,24 @@
     let tool = "oyster";
     let game;
 
+    const editorOverlay = document.querySelector("#editorOverlay");
+    const editorGridEl = document.querySelector("#editorGrid");
+    const editorToolsEl = document.querySelector("#editorTools");
+    const editorErrorEl = document.querySelector("#editorError");
+
+    let editorState = {
+      editTool: "pollute",
+      cells: Array.from({ length: 96 }, () => ({ type: "empty", polluted: false })),
+      params: {
+        budget: 120,
+        turns: 10,
+        stormChance: 0.20,
+        goalScore: 50
+      }
+    };
+
     function renderSceneList() {
-      sceneListEl.innerHTML = Object.values(scenes).map(s => `
+      const regularScenes = Object.values(scenes).map(s => `
         <div class="scene-card ${s.id === selectedSceneId ? 'selected' : ''}" data-id="${s.id}">
           <h3>${s.name}</h3>
           <div class="desc">${s.desc}</div>
@@ -187,6 +277,23 @@
           </div>
         </div>
       `).join('');
+
+      const sandboxCard = `
+        <div class="scene-card ${selectedSceneId === 'sandbox' ? 'selected' : ''}" data-id="sandbox">
+          <h3>沙盒编辑器</h3>
+          <div class="desc">自由配置污染格、初始设施和游戏参数，打造你的专属修复挑战。</div>
+          <div class="tags">
+            <span class="tag sandbox-tag">自定义</span>
+            <span class="tag">自由配置</span>
+            <span class="tag">创意挑战</span>
+          </div>
+          <div style="margin-top:10px; font-size:12px; color:#4a5f5d;">
+            点击进入编辑器配置地图和参数
+          </div>
+        </div>
+      `;
+
+      sceneListEl.innerHTML = regularScenes + sandboxCard;
       sceneListEl.querySelectorAll('.scene-card').forEach(card => {
         card.onclick = () => {
           selectedSceneId = card.dataset.id;
@@ -203,17 +310,261 @@
     }
 
     function startGameWithScene(sceneId) {
+      if (sceneId === "sandbox") {
+        openSandboxEditor();
+        return;
+      }
       currentSceneId = sceneId;
       sceneOverlay.classList.add('hidden');
       sceneInfoEl.textContent = `当前场景：${scenes[currentSceneId].name}`;
       fresh();
     }
 
-    function fresh() {
+    function openSandboxEditor() {
+      sceneOverlay.classList.add('hidden');
+      editorOverlay.classList.remove('hidden');
+      resetEditorState();
+      renderEditor();
+      bindEditorEvents();
+    }
+
+    function closeSandboxEditor() {
+      editorOverlay.classList.add('hidden');
+      sceneOverlay.classList.remove('hidden');
+      selectedSceneId = currentSceneId;
+      renderSceneList();
+    }
+
+    function resetEditorState() {
+      editorState = {
+        editTool: "pollute",
+        cells: Array.from({ length: 96 }, () => ({ type: "empty", polluted: false })),
+        params: {
+          budget: 120,
+          turns: 10,
+          stormChance: 0.20,
+          goalScore: 50
+        }
+      };
+      document.querySelector("#paramBudget").value = 120;
+      document.querySelector("#paramTurns").value = 10;
+      document.querySelector("#paramStorm").value = 0.20;
+      document.querySelector("#paramGoal").value = 50;
+      editorErrorEl.textContent = "";
+      editorErrorEl.classList.remove("show");
+    }
+
+    function renderEditor() {
+      editorGridEl.innerHTML = editorState.cells.map((cell, i) => {
+        let classes = "cell " + cell.type;
+        if (cell.polluted) classes += " polluted";
+        return `<div class="${classes}" data-i="${i}"><span>${icons[cell.type]}</span></div>`;
+      }).join("");
+
+      editorGridEl.querySelectorAll(".cell").forEach(cell => {
+        cell.onclick = () => handleEditorClick(Number(cell.dataset.i));
+        cell.onmouseenter = () => handleEditorHover(Number(cell.dataset.i), true);
+        cell.onmouseleave = () => handleEditorHover(Number(cell.dataset.i), false);
+      });
+
+      editorToolsEl.querySelectorAll("[data-edit]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.edit === editorState.editTool);
+      });
+
+      updateEditorPreview();
+    }
+
+    function handleEditorClick(i) {
+      const cell = editorState.cells[i];
+      const tool = editorState.editTool;
+
+      if (tool === "pollute") {
+        cell.polluted = true;
+      } else if (tool === "unpollute") {
+        cell.polluted = false;
+      } else if (tool === "erase") {
+        cell.type = "empty";
+      } else if (tool === "clearAll") {
+        resetEditorState();
+      } else if (["oyster", "grass", "pile"].includes(tool)) {
+        if (cell.type === "empty") {
+          cell.type = tool;
+        }
+      }
+
+      renderEditor();
+    }
+
+    function handleEditorHover(i, enter) {
+      const cell = editorGridEl.querySelector(`[data-i="${i}"]`);
+      if (!cell) return;
+
+      if (enter) {
+        if (editorState.editTool === "pollute") {
+          cell.classList.add("preview-pol");
+        } else if (["oyster", "grass", "pile"].includes(editorState.editTool)) {
+          cell.classList.add("preview-obs");
+        }
+      } else {
+        cell.classList.remove("preview-pol", "preview-obs");
+      }
+    }
+
+    function updateEditorPreview() {
+      const pollutionCount = editorState.cells.filter(c => c.polluted).length;
+      const repairableCount = editorState.cells.filter(c => !c.polluted).length;
+      const facilities = editorState.cells.filter(c => c.type !== "empty");
+      const facilityCount = facilities.length;
+      const facilityCost = facilities.reduce((sum, c) => sum + costs[c.type], 0);
+
+      document.querySelector("#previewPollution").textContent = pollutionCount;
+      document.querySelector("#previewRepairable").textContent = repairableCount;
+      document.querySelector("#previewFacilities").textContent = facilityCount;
+      document.querySelector("#previewCost").textContent = facilityCost;
+    }
+
+    function validateEditorConfig() {
+      const params = editorState.params;
+      const cells = editorState.cells;
+      const errors = [];
+
+      const repairableCount = cells.filter(c => !c.polluted).length;
+      if (repairableCount === 0) {
+        errors.push("没有可修复区域：所有格子都被设置为污染，请至少保留一个非污染格。");
+      }
+
+      if (params.budget < 0) {
+        errors.push("初始预算不能为负数。");
+      }
+
+      if (params.budget === 0) {
+        errors.push("初始预算为0，无法放置任何设施。");
+      }
+
+      if (params.turns < 1 || params.turns > 30) {
+        errors.push("回合数超出合理范围：请设置1-30回合。");
+      }
+
+      if (params.stormChance < 0 || params.stormChance > 1) {
+        errors.push("风暴概率必须在0到1之间。");
+      }
+
+      if (params.goalScore < 0) {
+        errors.push("目标评分不能为负数。");
+      }
+
+      const facilityCost = cells.filter(c => c.type !== "empty").reduce((sum, c) => sum + costs[c.type], 0);
+      if (facilityCost > params.budget) {
+        errors.push(`初始设施花费(${facilityCost})超过初始预算(${params.budget})。`);
+      }
+
+      return errors;
+    }
+
+    function showEditorError(message) {
+      editorErrorEl.textContent = message;
+      editorErrorEl.classList.add("show");
+    }
+
+    function clearEditorError() {
+      editorErrorEl.textContent = "";
+      editorErrorEl.classList.remove("show");
+    }
+
+    function saveAndStartSandbox() {
+      editorState.params.budget = Number(document.querySelector("#paramBudget").value);
+      editorState.params.turns = Number(document.querySelector("#paramTurns").value);
+      editorState.params.stormChance = Number(document.querySelector("#paramStorm").value);
+      editorState.params.goalScore = Number(document.querySelector("#paramGoal").value);
+
+      const errors = validateEditorConfig();
+      if (errors.length > 0) {
+        showEditorError(errors.join("\n"));
+        return;
+      }
+
+      clearEditorError();
+
+      const pollutionIndices = editorState.cells
+        .map((c, i) => c.polluted ? i : -1)
+        .filter(i => i >= 0);
+
+      const initialFacilities = editorState.cells.filter(c => c.type !== "empty");
+      const facilityCost = initialFacilities.reduce((sum, c) => sum + costs[c.type], 0);
+
+      const sandboxScene = {
+        id: "sandbox",
+        name: "自定义沙盒",
+        desc: "玩家自定义配置的修复挑战场景。",
+        budget: editorState.params.budget - facilityCost,
+        water: 50,
+        larvae: 20,
+        bio: 20,
+        turns: editorState.params.turns,
+        stormChance: editorState.params.stormChance,
+        pollutionIndices: pollutionIndices,
+        goalScore: editorState.params.goalScore,
+        goalDesc: `生态评分 ≥ ${editorState.params.goalScore}`,
+        tags: ["自定义", "沙盒"],
+        winText: "自定义挑战完成！你成功修复了这片潮间带。",
+        loseText: "自定义挑战失败，继续调整策略尝试吧！",
+        initialCells: editorState.cells.map(c => ({ type: c.type, polluted: c.polluted }))
+      };
+
+      scenes.sandbox = sandboxScene;
+      currentSceneId = "sandbox";
+      editorOverlay.classList.add('hidden');
+      sceneInfoEl.textContent = `当前场景：自定义沙盒`;
+      freshSandbox();
+    }
+
+    function freshSandbox() {
       const s = scenes[currentSceneId];
       game = {
         turn: 1, budget: s.budget, water: s.water, larvae: s.larvae, bio: s.bio, ended: false,
-        cells: Array.from({ length: 96 }, (_, i) => ({ type: "empty", polluted: s.pollutionIndices.includes(i) })),
+        cells: s.initialCells.map(c => ({ ...c })),
+        log: ["【自定义沙盒】第1潮，退潮露出修复区。目标：" + s.goalDesc]
+      };
+      overlay.classList.add("hidden");
+      render();
+    }
+
+    function bindEditorEvents() {
+      editorToolsEl.querySelectorAll("[data-edit]").forEach(btn => {
+        btn.onclick = () => {
+          editorState.editTool = btn.dataset.edit;
+          if (editorState.editTool === "clearAll") {
+            resetEditorState();
+            renderEditor();
+          } else {
+            renderEditor();
+          }
+        };
+      });
+
+      ["paramBudget", "paramTurns", "paramStorm", "paramGoal"].forEach(id => {
+        document.querySelector("#" + id).oninput = () => {
+          editorState.params.budget = Number(document.querySelector("#paramBudget").value);
+          editorState.params.turns = Number(document.querySelector("#paramTurns").value);
+          editorState.params.stormChance = Number(document.querySelector("#paramStorm").value);
+          editorState.params.goalScore = Number(document.querySelector("#paramGoal").value);
+          updateEditorPreview();
+          clearEditorError();
+        };
+      });
+    }
+
+    function fresh() {
+      const s = scenes[currentSceneId];
+      let cells;
+      if (currentSceneId === "sandbox" && s.initialCells) {
+        cells = s.initialCells.map(c => ({ ...c }));
+      } else {
+        cells = Array.from({ length: 96 }, (_, i) => ({ type: "empty", polluted: s.pollutionIndices.includes(i) }));
+      }
+      game = {
+        turn: 1, budget: s.budget, water: s.water, larvae: s.larvae, bio: s.bio, ended: false,
+        cells: cells,
         log: ["【" + s.name + "】第1潮，退潮露出修复区。目标：" + s.goalDesc]
       };
       overlay.classList.add("hidden");
@@ -318,6 +669,8 @@
     document.querySelector("#againBtn").onclick = fresh;
     document.querySelector("#switchSceneBtn").onclick = showSceneSelect;
     document.querySelector("#startSceneBtn").onclick = () => startGameWithScene(selectedSceneId);
+    document.querySelector("#editorCancelBtn").onclick = closeSandboxEditor;
+    document.querySelector("#editorSaveBtn").onclick = saveAndStartSandbox;
 
     sceneInfoEl.textContent = `当前场景：${scenes[currentSceneId].name}`;
     showSceneSelect();
