@@ -6,7 +6,9 @@ import {
   deleteCampaignProgress,
   hasSavedCampaign,
   getChapterCarryOverSummary,
-  isCampaignComplete
+  isCampaignComplete,
+  getBranchRewardMeta,
+  BRANCH_REWARD_TYPES
 } from '../game/campaign.js';
 import { ICONS } from '../game/constants.js';
 import { renderBestComparison } from './modals.js';
@@ -16,6 +18,50 @@ let campaignReplayState = {
   replayData: null,
   overlayEl: null
 };
+
+function renderBranchRewardsList(rewards, options = {}) {
+  if (!rewards || rewards.length === 0) return '';
+
+  const { title, showSources = false } = options;
+
+  const items = rewards.map(r => {
+    const meta = getBranchRewardMeta(r.type);
+    const valueText = meta.format(r.value);
+    const sourcesText = showSources && r.sources && r.sources.length > 0
+      ? `<div class="branch-reward-sources">来源：${r.sources.join('、')}</div>`
+      : '';
+    const posClass = meta.positive ? 'branch-reward-positive' : 'branch-reward-negative';
+
+    return `
+      <div class="branch-reward-item ${posClass}">
+        <span class="branch-reward-icon">${meta.icon}</span>
+        <div class="branch-reward-info">
+          <div class="branch-reward-label">${meta.label}</div>
+          <div class="branch-reward-value">${valueText}</div>
+          ${sourcesText}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="branch-rewards-section">
+      ${title ? `<div class="branch-rewards-title">${title}</div>` : ''}
+      <div class="branch-rewards-list">${items}</div>
+    </div>
+  `;
+}
+
+function getGradeBadgeHtml(grade) {
+  if (!grade) return '';
+  const gradeColors = {
+    S: 'grade-s',
+    A: 'grade-a',
+    B: 'grade-b',
+    C: 'grade-c'
+  };
+  return `<span class="grade-badge ${gradeColors[grade] || ''}">${grade}级</span>`;
+}
 
 export function renderCampaignList(containerEl, onSelect) {
   const campaigns = getAllCampaigns();
@@ -62,14 +108,49 @@ export function renderCampaignDetail(containerEl, campaignId, actions) {
     const statusClass = `chapter-${status}`;
 
     const carryOver = hasSave ? getChapterCarryOverSummary(saved, ch.order) : null;
+
     let carryOverHtml = '';
+    let earnedRewardsHtml = '';
+    let appliedRewardsHtml = '';
+
     if (carryOver) {
-      carryOverHtml = `
-        <div class="chapter-carryover">
-          <span>上一章结余：预算+${carryOver.budgetCarry}</span>
-          <span>污染残留：${carryOver.pollutionResidue}格</span>
-        </div>
-      `;
+      const baseInfo = [];
+      if (carryOver.prevScore !== null && carryOver.prevScore !== undefined) {
+        baseInfo.push(`上一章评分：${carryOver.prevScore}${getGradeBadgeHtml(carryOver.prevGrade)}`);
+      }
+      if (carryOver.prevWon === true) {
+        baseInfo.push('✅ 上章通过');
+      } else if (carryOver.prevWon === false) {
+        baseInfo.push('❌ 上章未通过');
+      }
+      if (baseInfo.length > 0) {
+        carryOverHtml = `<div class="chapter-prev-info">${baseInfo.join(' · ')}</div>`;
+      }
+
+      if (carryOver.appliedBranchRewards && carryOver.appliedBranchRewards.length > 0) {
+        appliedRewardsHtml = renderBranchRewardsList(carryOver.appliedBranchRewards, {
+          title: '🔮 本章开局修正',
+          showSources: true
+        });
+      }
+    }
+
+    if (chData && chData.branchRewards && chData.branchRewards.length > 0) {
+      earnedRewardsHtml = renderBranchRewardsList(chData.branchRewards, {
+        title: '🎁 本章产生的分支奖励',
+        showSources: true
+      });
+    }
+
+    let gradeHtml = '';
+    if (chData && chData.grade) {
+      gradeHtml = getGradeBadgeHtml(chData.grade);
+    }
+
+    let stormInfoHtml = '';
+    if (chData && chData.stormSurvived) {
+      const stormText = chData.stormDamaged ? '⛈️ 遭遇风暴（有损坏）' : '⛅ 成功抵御风暴（无损坏）';
+      stormInfoHtml = `<div class="chapter-storm-info">${stormText}</div>`;
     }
 
     const canStart = status === 'unlocked' || status === 'failed';
@@ -78,12 +159,15 @@ export function renderCampaignDetail(containerEl, campaignId, actions) {
     return `
       <div class="chapter-item ${statusClass}">
         <div class="chapter-header">
-          <span class="chapter-name">${ch.name}</span>
+          <span class="chapter-name">${ch.name} ${gradeHtml}</span>
           <span class="chapter-status">${statusLabel}</span>
         </div>
         <div class="chapter-desc">${ch.desc}</div>
         ${chData && chData.score !== null ? `<div class="chapter-score">评分：${chData.score}</div>` : ''}
+        ${stormInfoHtml}
         ${carryOverHtml}
+        ${appliedRewardsHtml}
+        ${earnedRewardsHtml}
         <div class="chapter-goals">目标：${ch.sceneConfig.goalDesc}</div>
         <div class="chapter-actions">
           ${canStart ? `<button class="chapter-start-btn" data-chapter="${ch.order}">开始本章</button>` : ''}
@@ -101,6 +185,18 @@ export function renderCampaignDetail(containerEl, campaignId, actions) {
       <button class="campaign-back-btn secondary">← 返回战役列表</button>
       <h2>${campaign.name}</h2>
       <div class="campaign-desc">${campaign.desc}</div>
+      <div class="branch-rewards-legend">
+        <div class="legend-title">📖 分支奖励说明</div>
+        <div class="legend-items">
+          <span class="legend-item">💰 预算奖励</span>
+          <span class="legend-item">💧 水质提升</span>
+          <span class="legend-item">🐚 幼体提升</span>
+          <span class="legend-item">🌿 多样性提升</span>
+          <span class="legend-item">⛅ 风暴概率下降</span>
+          <span class="legend-item">☣️ 污染残留</span>
+        </div>
+        <div class="legend-hint">根据每章的评分等级、污染控制、预算节余和风暴抵御情况，获得不同的开局修正。</div>
+      </div>
       ${campaignComplete ? `<div class="campaign-complete-banner">🎉 战役通关！总评分：${totalScore}</div>` : ''}
       <div class="chapter-list">
         ${chaptersHtml}
@@ -183,26 +279,66 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
   }
 
   let carryOverHtml = '';
-  if (carryOver && result.win && !isLastChapter) {
+  if (carryOver && !isLastChapter) {
     const items = [];
+
+    if (carryOver.branchRewards && carryOver.branchRewards.length > 0) {
+      carryOver.branchRewards.forEach(r => {
+        const meta = getBranchRewardMeta(r.type);
+        const posClass = meta.positive ? 'carryover-bonus' : 'carryover-penalty';
+        items.push(`
+          <div class="carryover-item ${posClass}">
+            <span class="carryover-item-icon">${meta.icon}</span>
+            <span class="carryover-item-label">${meta.label}</span>
+            <span class="carryover-item-value">${meta.format(r.value)}</span>
+          </div>
+        `);
+      });
+    }
+
     if (carryOver.budgetCarry > 0) {
-      items.push(`<span class="carryover-item carryover-bonus">预算结转 +${carryOver.budgetCarry}</span>`);
+      items.push(`<div class="carryover-item carryover-bonus"><span class="carryover-item-icon">📦</span><span class="carryover-item-label">预算结转</span><span class="carryover-item-value">+${carryOver.budgetCarry}</span></div>`);
     }
     if (carryOver.pollutionResidue > 0) {
-      items.push(`<span class="carryover-item carryover-penalty">污染残留 +${carryOver.pollutionResidue}格</span>`);
+      items.push(`<div class="carryover-item carryover-penalty"><span class="carryover-item-icon">☣️</span><span class="carryover-item-label">污染残留</span><span class="carryover-item-value">+${carryOver.pollutionResidue}格</span></div>`);
     }
-    if (carryOver.budgetCarry <= 0 && carryOver.pollutionResidue <= 0) {
-      items.push(`<span class="carryover-item carryover-neutral">无额外继承</span>`);
+    if (items.length === 0) {
+      items.push(`<div class="carryover-item carryover-neutral">无额外继承</div>`);
     }
+
+    const gradeHtml = carryOver.grade ? `<div class="carryover-grade">本章评级：${getGradeBadgeHtml(carryOver.grade)}</div>` : '';
+
+    const sourcesHtml = carryOver.branchRewards && carryOver.branchRewards.length > 0
+      ? `<div class="carryover-sources">
+          ${carryOver.branchRewards.map(r => {
+            if (r.sources && r.sources.length > 0) {
+              const meta = getBranchRewardMeta(r.type);
+              return `<div class="carryover-source-row">${meta.icon} ${meta.label}：${r.sources.join('、')}</div>`;
+            }
+            return '';
+          }).join('')}
+        </div>`
+      : '';
+
     carryOverHtml = `
       <div class="campaign-carryover-preview">
-        <div class="carryover-label">下一章继承</div>
-        <div class="carryover-items">${items.join('')}</div>
+        <div class="carryover-label">🎁 下一章开局修正</div>
+        ${gradeHtml}
+        <div class="carryover-items-grid">${items.join('')}</div>
+        ${sourcesHtml}
       </div>
     `;
   }
 
   const budgetValue = result.budget != null ? result.budget : 0;
+
+  let stormStatsHtml = '';
+  if (result.stormHitCount > 0) {
+    const stormText = result.stormDamageCount > 0
+      ? `⛈️ 遭遇 ${result.stormHitCount} 次风暴，${result.stormDamageCount} 次造成损坏`
+      : `⛅ 遭遇 ${result.stormHitCount} 次风暴，全部抵御成功！`;
+    stormStatsHtml = `<div class="campaign-storm-stats">${stormText}</div>`;
+  }
 
   const bestComparisonHtml = renderBestComparison(lbResult);
 
@@ -215,7 +351,7 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
       <div class="result-tab-content" id="campaignResultTabContent">
         <div class="campaign-result-icon">${resultIcon}</div>
         <h2>${resultTitle}</h2>
-        <div class="campaign-result-chapter">${chapterName}</div>
+        <div class="campaign-result-chapter">${chapterName}${carryOver && carryOver.grade ? ' · ' + getGradeBadgeHtml(carryOver.grade) : ''}</div>
         <div class="campaign-result-stats">
           <div class="campaign-result-stat">
             <span>最终评分</span>
@@ -230,6 +366,7 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
             <strong>${budgetValue}</strong>
           </div>
         </div>
+        ${stormStatsHtml}
         ${bestComparisonHtml}
         ${carryOverHtml}
         <p class="campaign-result-text">${result.text}</p>
@@ -307,9 +444,10 @@ export function showCampaignSummary(overlayEl, campaignId, progress, callbacks) 
 
   const chapters = campaign.chapters.map(ch => {
     const chData = progress.chapters[ch.order];
+    const gradeHtml = chData && chData.grade ? getGradeBadgeHtml(chData.grade) : '';
     return `
       <div class="summary-chapter">
-        <div class="summary-chapter-name">${ch.name}</div>
+        <div class="summary-chapter-name">${ch.name} ${gradeHtml}</div>
         <div class="summary-chapter-score">${chData && chData.score !== null ? chData.score + '分' : '—'}</div>
         <div class="summary-chapter-status">${chData && chData.won ? '✅' : '❌'}</div>
       </div>

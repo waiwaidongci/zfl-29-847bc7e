@@ -941,7 +941,12 @@ function handleCampaignChapterEnd(result, lbResult) {
     win: result.win,
     score: result.score,
     pollution: result.pollution,
-    budget: result.budget
+    budget: result.budget,
+    stormSurvived: result.stormSurvived,
+    stormDamaged: result.stormDamaged,
+    finalWater: result.finalWater,
+    finalLarvae: result.finalLarvae,
+    finalBio: result.finalBio
   });
   saveCampaignProgress(campaignProgress);
 
@@ -950,7 +955,12 @@ function handleCampaignChapterEnd(result, lbResult) {
     win: result.win,
     score: result.score,
     pollution: result.pollution,
-    budget: result.budget
+    budget: result.budget,
+    stormSurvived: result.stormSurvived,
+    stormDamaged: result.stormDamaged,
+    finalWater: result.finalWater,
+    finalLarvae: result.finalLarvae,
+    finalBio: result.finalBio
   });
 
   showCampaignResult(campaignResultOverlay, result, chapter.name, isLastChapter, carryOver, {

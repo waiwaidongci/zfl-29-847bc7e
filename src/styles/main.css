@@ -1973,3 +1973,252 @@ button.secondary { background: #617b78; }
     margin: 0 auto;
   }
 }
+
+.branch-rewards-legend {
+  background: linear-gradient(135deg, #f3f8f7 0%, #e8f5f0 100%);
+  border: 1px solid #c9dbd8;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.legend-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #237070;
+  margin-bottom: 8px;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.legend-item {
+  font-size: 12px;
+  background: #fff;
+  padding: 3px 10px;
+  border-radius: 10px;
+  border: 1px solid #d9e7e5;
+  color: #4a5f5d;
+  font-weight: 600;
+}
+
+.legend-hint {
+  font-size: 11px;
+  color: #8a9a98;
+  line-height: 1.5;
+}
+
+.branch-rewards-section {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: #f9fcfb;
+  border: 1px solid #d9e7e5;
+  border-radius: 6px;
+}
+
+.branch-rewards-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #237070;
+  margin-bottom: 8px;
+}
+
+.branch-rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.branch-reward-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.branch-reward-item.branch-reward-positive {
+  border-left: 3px solid #6eb77a;
+  background: #eaf7ee;
+}
+
+.branch-reward-item.branch-reward-negative {
+  border-left: 3px solid #e4a8a3;
+  background: #fbe9e9;
+}
+
+.branch-reward-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.branch-reward-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.branch-reward-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1c2b2c;
+}
+
+.branch-reward-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: #237070;
+}
+
+.branch-reward-negative .branch-reward-value {
+  color: #8b2f27;
+}
+
+.branch-reward-sources {
+  font-size: 11px;
+  color: #617b78;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.grade-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 900;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.grade-badge.grade-s {
+  background: linear-gradient(135deg, #ffd700, #ffb347);
+  color: #5a3e00;
+  border: 1px solid #d4a017;
+}
+
+.grade-badge.grade-a {
+  background: linear-gradient(135deg, #e6f5ec, #bde1c7);
+  color: #1a5a3a;
+  border: 1px solid #8ecfaa;
+}
+
+.grade-badge.grade-b {
+  background: linear-gradient(135deg, #e8f5f0, #c9dbd8);
+  color: #237070;
+  border: 1px solid #a8c7c3;
+}
+
+.grade-badge.grade-c {
+  background: linear-gradient(135deg, #fdf6e3, #e8d9a8);
+  color: #8a6d1e;
+  border: 1px solid #d4b86a;
+}
+
+.chapter-prev-info {
+  font-size: 12px;
+  color: #617b78;
+  background: #f3f8f7;
+  padding: 5px 10px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.chapter-storm-info {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c3e66;
+  background: #eef3fb;
+  padding: 5px 10px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.campaign-storm-stats {
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px 12px;
+  background: #eef3fb;
+  border: 1px solid #b9cbe6;
+  border-radius: 6px;
+  margin: 0 auto 14px;
+  max-width: 360px;
+  color: #2c3e66;
+}
+
+.carryover-grade {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8a6d1e;
+}
+
+.carryover-grade .grade-badge {
+  font-size: 14px;
+  padding: 3px 12px;
+}
+
+.carryover-items-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.carryover-items-grid .carryover-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  justify-content: flex-start;
+}
+
+.carryover-item-icon {
+  font-size: 16px;
+}
+
+.carryover-item-label {
+  flex: 1;
+  font-weight: 600;
+  text-align: left;
+}
+
+.carryover-item-value {
+  font-weight: 800;
+}
+
+.carryover-sources {
+  background: #fff;
+  border: 1px solid #d9e7e5;
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.carryover-source-row {
+  font-size: 11px;
+  color: #617b78;
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .carryover-items-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .legend-items {
+    gap: 5px;
+  }
+  
+  .legend-item {
+    font-size: 11px;
+    padding: 2px 8px;
+  }
+}

@@ -97,6 +97,8 @@ export function createGameState(scene, options) {
     campaignId: opts.campaignId || null,
     campaignChapterOrder: opts.campaignChapterOrder || null,
     startTime: Date.now(),
+    stormHitCount: 0,
+    stormDamageCount: 0,
     replay: {
       sceneId: scene.id,
       sceneName: scene.name,
@@ -270,6 +272,10 @@ export function triggerStorm(game) {
     damaged = true;
   }
   game.water -= STORM_WATER_PENALTY;
+  game.stormHitCount = (game.stormHitCount || 0) + 1;
+  if (damaged) {
+    game.stormDamageCount = (game.stormDamageCount || 0) + 1;
+  }
   const stormMsg = damaged ? `风暴潮冲刷了修复区，一处${{oyster:'牡蛎礁',grass:'海草床',pile:'围护桩'}[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
   game.log.unshift(stormMsg);
   recordReplayEvent(game, 'storm', stormMsg, { damaged, damagedType });

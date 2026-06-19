@@ -57,13 +57,18 @@ export function finishGame(game, scene) {
 
   unlockByEvent(win ? 'repair_win' : 'repair_lose');
 
+  const stormSurvived = (game.stormHitCount || 0) > 0;
+  const stormDamaged = (game.stormDamageCount || 0) > 0;
+
   recordReplayEvent(game, win ? 'win' : 'lose', win ? '修复成功！' : '修复仍需加力', {
     score,
     pollution,
     water: Math.round(game.water),
     larvae: Math.round(game.larvae),
     bio: Math.round(game.bio),
-    budget: game.budget
+    budget: game.budget,
+    stormSurvived,
+    stormDamaged
   });
 
   const resultText =
@@ -77,6 +82,13 @@ export function finishGame(game, scene) {
     pollution,
     budget: game.budget,
     title: win ? '修复成功' : '修复仍需加力',
-    text: resultText
+    text: resultText,
+    stormSurvived,
+    stormDamaged,
+    stormHitCount: game.stormHitCount || 0,
+    stormDamageCount: game.stormDamageCount || 0,
+    finalWater: Math.round(game.water),
+    finalLarvae: Math.round(game.larvae),
+    finalBio: Math.round(game.bio)
   };
 }
