@@ -1,15 +1,38 @@
 const STORAGE_KEY = 'tidal_leaderboard';
-const MAX_ENTRIES_PER_GROUP = 20;
 
 let entries = [];
 let nextId = 1;
+
+function getEntryKey(entry) {
+  return `${entry.sceneId}|${entry.seed}`;
+}
+
+function isBetterEntry(candidate, current) {
+  if (!current) return true;
+  if (candidate.score !== current.score) return candidate.score > current.score;
+  return (candidate.recordedAt || 0) < (current.recordedAt || 0);
+}
+
+function normalizeEntries() {
+  const bestByKey = new Map();
+  for (const entry of entries) {
+    const key = getEntryKey(entry);
+    const current = bestByKey.get(key);
+    if (isBetterEntry(entry, current)) {
+      bestByKey.set(key, entry);
+    }
+  }
+  entries = Array.from(bestByKey.values());
+}
 
 export function loadLeaderboardState() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       entries = JSON.parse(stored);
+      normalizeEntries();
       nextId = entries.reduce((max, e) => Math.max(max, e._id || 0), 0) + 1;
+      saveLeaderboardState();
     }
   } catch {
     entries = [];
@@ -24,24 +47,17 @@ export function saveLeaderboardState() {
 
 export function addEntry(entry) {
   const id = nextId++;
-  entries.push({
+  const nextEntry = {
     ...entry,
     _id: id,
     recordedAt: Date.now()
-  });
+  };
 
-  const groupKey = `${entry.sceneId}|${entry.seed}`;
-  const group = entries.filter(e => `${e.sceneId}|${e.seed}` === groupKey);
-  group.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return a._id - b._id;
-  });
-
-  const toRemoveIds = new Set(
-    group.slice(MAX_ENTRIES_PER_GROUP).map(e => e._id)
-  );
-  if (toRemoveIds.size > 0) {
-    entries = entries.filter(e => !toRemoveIds.has(e._id));
+  const key = getEntryKey(nextEntry);
+  const current = entries.find(e => getEntryKey(e) === key);
+  if (isBetterEntry(nextEntry, current)) {
+    entries = entries.filter(e => getEntryKey(e) !== key);
+    entries.push(nextEntry);
   }
 
   saveLeaderboardState();
