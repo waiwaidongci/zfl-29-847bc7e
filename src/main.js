@@ -33,7 +33,9 @@ import {
   updateSceneInfo,
   showEditor as showEditorModal,
   hideEditor as hideEditorModal,
-  hideOverlay
+  hideOverlay,
+  bindResultTabSwitcher,
+  renderReplayView
 } from './ui/modals.js';
 
 const gridEl = document.querySelector('#grid');
@@ -87,6 +89,7 @@ function handleNextTurn() {
 
   if (result.ended) {
     showResult(resultTitle, resultText, overlay, result.title, result.text);
+    renderReplayView(game);
   }
 
   fullRender();
@@ -214,6 +217,8 @@ function bindGlobalEvents() {
   document.querySelectorAll('[data-tool]').forEach(btn => {
     btn.onclick = () => handleToolSelect(btn.dataset.tool);
   });
+
+  bindResultTabSwitcher();
 
   document.querySelector('#nextBtn').onclick = handleNextTurn;
   document.querySelector('#restartBtn').onclick = () => startNewGame(currentSceneId);

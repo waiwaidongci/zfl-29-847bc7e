@@ -58,6 +58,8 @@ export function createGameState(scene) {
     cells = createCellsFromPollutionIndices(scene.pollutionIndices || []);
   }
 
+  const { oysters, grass, piles, pollution } = getFacilityCountsFromCells(cells);
+
   return {
     turn: 1,
     budget: scene.budget,
@@ -66,8 +68,62 @@ export function createGameState(scene) {
     bio: scene.bio,
     ended: false,
     cells,
-    log: [`【${scene.name}】第1潮，退潮露出修复区。目标：${scene.goalDesc}`]
+    log: [`【${scene.name}】第1潮，退潮露出修复区。目标：${scene.goalDesc}`],
+    replay: {
+      sceneId: scene.id,
+      sceneName: scene.name,
+      goalDesc: scene.goalDesc,
+      goalScore: scene.goalScore,
+      snapshots: [{
+        turn: 1,
+        water: scene.water,
+        larvae: scene.larvae,
+        bio: scene.bio,
+        pollution,
+        budget: scene.budget,
+        oysters,
+        grass,
+        piles
+      }],
+      events: [{
+        turn: 1,
+        type: 'start',
+        message: `开始修复：${scene.name}，目标：${scene.goalDesc}`
+      }]
+    }
   };
+}
+
+function getFacilityCountsFromCells(cells) {
+  const oysters = cells.filter(c => c.type === 'oyster').length;
+  const grass = cells.filter(c => c.type === 'grass').length;
+  const piles = cells.filter(c => c.type === 'pile').length;
+  const pollution = cells.filter(c => c.polluted).length;
+  return { oysters, grass, piles, pollution };
+}
+
+export function recordReplaySnapshot(game) {
+  const { oysters, grass, piles, pollution } = getFacilityCounts(game);
+  game.replay.snapshots.push({
+    turn: game.turn,
+    water: Math.round(game.water),
+    larvae: Math.round(game.larvae),
+    bio: Math.round(game.bio),
+    pollution,
+    budget: game.budget,
+    oysters,
+    grass,
+    piles
+  });
+}
+
+export function recordReplayEvent(game, type, message, data) {
+  game.replay.events.push({
+    turn: game.turn,
+    type,
+    message,
+    data: data || null
+  });
 }
 
 export function getNeighbors(index) {
@@ -94,8 +150,10 @@ export function placeFacility(game, index, tool) {
 
   if (tool === 'erase') {
     if (cell.type !== CELL_TYPES.EMPTY) {
+      const removedType = cell.type;
       cell.type = CELL_TYPES.EMPTY;
       game.log.unshift('移除了一处设施。');
+      recordReplayEvent(game, 'remove', '移除了一处设施', { type: removedType });
       return true;
     }
     return false;
@@ -110,6 +168,7 @@ export function placeFacility(game, index, tool) {
 
   const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩' };
   game.log.unshift(`放置${nameMap[tool]}。`);
+  recordReplayEvent(game, 'place', `放置${nameMap[tool]}`, { type: tool, cost: COSTS[tool] });
   unlockByEvent('place_' + tool);
 
   return true;
@@ -145,18 +204,22 @@ export function spreadPollution(game, piles) {
   });
 
   if (newPolluted.size > 0) {
+    recordReplayEvent(game, 'pollution_spread', `污染扩散，新增${newPolluted.size}个污染格`, { count: newPolluted.size });
     unlockByEvent('pollution_spread');
   }
 
   let oysterCleaned = false;
+  let cleanedCount = 0;
   game.cells.forEach(cell => {
     if (cell.type === 'oyster' && cell.polluted && Math.random() < OYSTER_CLEAN_CHANCE) {
       cell.polluted = false;
       oysterCleaned = true;
+      cleanedCount++;
     }
   });
 
   if (oysterCleaned) {
+    recordReplayEvent(game, 'oyster_clean', `牡蛎礁净化了${cleanedCount}个污染格`, { count: cleanedCount });
     unlockByEvent('oyster_clean');
   }
 }
@@ -164,12 +227,17 @@ export function spreadPollution(game, piles) {
 export function triggerStorm(game) {
   const placed = game.cells.filter(c => c.type !== CELL_TYPES.EMPTY);
   let damaged = false;
+  let damagedType = null;
   if (placed.length && Math.random() < STORM_DAMAGE_CHANCE) {
-    placed[Math.floor(Math.random() * placed.length)].type = CELL_TYPES.EMPTY;
+    const idx = Math.floor(Math.random() * placed.length);
+    damagedType = placed[idx].type;
+    placed[idx].type = CELL_TYPES.EMPTY;
     damaged = true;
   }
   game.water -= STORM_WATER_PENALTY;
-  game.log.unshift('风暴潮冲刷了修复区，部分设施受损。');
+  const stormMsg = damaged ? `风暴潮冲刷了修复区，一处${{oyster:'牡蛎礁',grass:'海草床',pile:'围护桩'}[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
+  game.log.unshift(stormMsg);
+  recordReplayEvent(game, 'storm', stormMsg, { damaged, damagedType });
   unlockByEvent('storm');
   if (!damaged) {
     unlockByEvent('storm_survive');

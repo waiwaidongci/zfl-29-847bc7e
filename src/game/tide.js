@@ -4,7 +4,10 @@ import {
   spreadPollution,
   triggerStorm,
   clampAllStats,
-  checkWinCondition
+  checkWinCondition,
+  recordReplaySnapshot,
+  recordReplayEvent,
+  calculateScore
 } from './state.js';
 import { unlockByEvent } from './codex.js';
 
@@ -21,6 +24,16 @@ export function advanceTurn(game, scene) {
   }
 
   clampAllStats(game);
+
+  const score = calculateScore(game);
+  recordReplaySnapshot(game);
+  recordReplayEvent(game, 'turn_end', `第${game.turn}潮结束：评分约${score}，水质${Math.round(game.water)}，幼体${Math.round(game.larvae)}，多样性${Math.round(game.bio)}，污染${game.cells.filter(c => c.polluted).length}格`, {
+    score,
+    water: Math.round(game.water),
+    larvae: Math.round(game.larvae),
+    bio: Math.round(game.bio),
+    pollution: game.cells.filter(c => c.polluted).length
+  });
 
   game.log.unshift(
     `第${game.turn}潮结束：牡蛎礁${oysters}处，海草床${grass}处，围护桩${piles}处。`
@@ -43,6 +56,15 @@ export function finishGame(game, scene) {
   }
 
   unlockByEvent(win ? 'repair_win' : 'repair_lose');
+
+  recordReplayEvent(game, win ? 'win' : 'lose', win ? '修复成功！' : '修复仍需加力', {
+    score,
+    pollution,
+    water: Math.round(game.water),
+    larvae: Math.round(game.larvae),
+    bio: Math.round(game.bio),
+    budget: game.budget
+  });
 
   const resultText =
     scene[win ? 'winText' : 'loseText'] +

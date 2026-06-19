@@ -49,10 +49,37 @@
   </main>
   <div class="overlay hidden" id="codexOverlay"></div>
   <div class="overlay hidden" id="overlay">
-    <div class="modal">
-      <h2 id="resultTitle"></h2>
-      <p id="resultText"></p>
-      <button id="againBtn">再修复一次</button>
+    <div class="modal result-modal">
+      <div class="result-tabs">
+        <button class="result-tab active" data-tab="result">结算结果</button>
+        <button class="result-tab" data-tab="replay">对局复盘</button>
+      </div>
+      <div class="result-tab-content" id="resultTabContent">
+        <h2 id="resultTitle"></h2>
+        <p id="resultText"></p>
+      </div>
+      <div class="result-tab-content hidden" id="replayTabContent">
+        <div class="replay-container">
+          <div class="replay-section">
+            <h3>📈 指标趋势</h3>
+            <div class="chart-container">
+              <svg class="trend-chart" id="trendChart" viewBox="0 0 600 260" preserveAspectRatio="xMidYMid meet"></svg>
+              <div class="chart-legend" id="chartLegend"></div>
+            </div>
+          </div>
+          <div class="replay-section">
+            <h3>📋 策略摘要</h3>
+            <div class="strategy-summary" id="strategySummary"></div>
+          </div>
+          <div class="replay-section">
+            <h3>🕒 事件时间线</h3>
+            <div class="event-timeline" id="eventTimeline"></div>
+          </div>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button id="againBtn">再修复一次</button>
+      </div>
     </div>
   </div>
   <div class="overlay" id="sceneOverlay">
