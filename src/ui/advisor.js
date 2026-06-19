@@ -377,18 +377,26 @@ function buildAlternativesHtml(step) {
 }
 
 function buildStepActions(step, index, isActive) {
+  let actionHtml = '';
+  if (step.executable) {
+    actionHtml = `
+      <button class="roadmap-apply-btn" data-roadmap-apply="${index}">⚡ 一键应用此步</button>
+      <button class="roadmap-highlight-btn" data-roadmap-highlight="${index}">
+        ${isActive ? '取消高亮' : '📍 查看位置'}
+      </button>`;
+  } else {
+    const hintText = step.planHint || (step.canAfford
+      ? '📋 计划部署（待该潮执行）'
+      : `⏳ 预算 ${step.projectedBudget} < ${step.cost}，下潮收入 +${TURN_BUDGET_BONUS} 后可执行`);
+    actionHtml = `
+      <span class="roadmap-plan-hint">${hintText}</span>
+      <button class="roadmap-highlight-btn" data-roadmap-highlight="${index}">
+        ${isActive ? '取消高亮' : '📍 查看位置'}
+      </button>`;
+  }
   return `
     <div class="roadmap-step-actions">
-      ${step.executable
-        ? `<button class="roadmap-apply-btn" data-roadmap-apply="${index}">⚡ 一键应用此步</button>
-           <button class="roadmap-highlight-btn" data-roadmap-highlight="${index}">
-             ${isActive ? '取消高亮' : '📍 查看位置'}
-           </button>`
-        : `<span class="roadmap-plan-hint">⏳ 预算 ${step.projectedBudget} < ${step.cost}，下潮收入 +${TURN_BUDGET_BONUS} 后可执行</span>
-           <button class="roadmap-highlight-btn" data-roadmap-highlight="${index}">
-             ${isActive ? '取消高亮' : '📍 查看位置'}
-           </button>`
-      }
+      ${actionHtml}
     </div>
   `;
 }

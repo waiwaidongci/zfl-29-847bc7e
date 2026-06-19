@@ -671,16 +671,23 @@ export function generateRoadmap(game, scene) {
       comparativeScore: c.deployment.comparativeScore
     }));
 
-    const executable = simBudget >= deployment.cost;
+    const canAfford = simBudget >= deployment.cost;
+    const executable = step === 0 && canAfford;
 
     const stormRisk = evaluateStormRisk(simCells, scene.stormChance, deployment);
-    const budgetProjection = projectBudget(simBudget, step, maxSteps, deployment.cost, executable);
+    const budgetProjection = projectBudget(simBudget, step, maxSteps, deployment.cost, canAfford);
     const goalAnalysis = analyzeGoalProgress(scene, currentScore, goalGap, deployment, step, maxSteps);
+
+    const planHint = step === 0
+      ? (canAfford ? '当前潮可立即执行' : '预算不足，需等待后续收入')
+      : (canAfford ? '预测该潮预算充足，计划执行' : '预计该潮预算不足，需等待后续收入');
 
     roadmap.push({
       tide: tideNumber,
       stepIndex: step,
       executable,
+      canAfford,
+      planHint,
       type: deployment.type,
       targetIndex: deployment.targetIndex,
       cost: deployment.cost,
@@ -688,7 +695,7 @@ export function generateRoadmap(game, scene) {
       detailedBenefit: deployment.detailedBenefit,
       reason: deployment.reason,
       projectedBudget: simBudget,
-      budgetAfter: executable ? simBudget - deployment.cost : simBudget + TURN_BUDGET_BONUS - deployment.cost,
+      budgetAfter: canAfford ? simBudget - deployment.cost : simBudget + TURN_BUDGET_BONUS - deployment.cost,
       budgetProjection,
       pollutionRisk: maxRisk,
       pollutionCount: currentPollution,
@@ -708,7 +715,7 @@ export function generateRoadmap(game, scene) {
       sceneGoals: extractSceneGoals(scene)
     });
 
-    if (executable) {
+    if (canAfford) {
       simCells[deployment.targetIndex].type = deployment.type;
       simBudget -= deployment.cost;
     }
