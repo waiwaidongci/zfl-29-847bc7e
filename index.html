@@ -28,14 +28,31 @@
     .entry { background: #f3f8f7; border-left: 4px solid #237070; border-radius: 6px; padding: 8px; }
     .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20,40,40,.42); }
     .modal { width: min(430px, calc(100% - 28px)); background: #fff; border: 1px solid #c9dbd8; border-radius: 8px; padding: 22px; }
+    .scene-modal { width: min(720px, calc(100% - 28px)); }
+    .scene-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+    .scene-card { border: 2px solid #c9dbd8; border-radius: 8px; padding: 16px; cursor: pointer; background: #f3f8f7; transition: all .15s; }
+    .scene-card:hover { border-color: #237070; transform: translateY(-2px); }
+    .scene-card.selected { border-color: #c08d2d; background: #fdf6e3; }
+    .scene-card h3 { margin: 0 0 6px; font-size: 18px; }
+    .scene-card .desc { font-size: 13px; color: #4a5f5d; margin-bottom: 10px; min-height: 52px; }
+    .scene-card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .scene-card .tag { font-size: 11px; background: #d9e7e5; color: #237070; padding: 3px 8px; border-radius: 10px; }
+    .scene-info { font-size: 13px; color: #4a5f5d; margin-left: 10px; }
+    .header-right { display: flex; gap: 8px; align-items: center; }
     .hidden { display: none; }
-    @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } .scene-list { grid-template-columns: 1fr; } .header-right { margin-top: 10px; } }
   </style>
 </head>
 <body>
   <header>
-    <div><h1>潮间带生态修复</h1><div>放置设施，控制污染，撑过10个潮汐周期。</div></div>
-    <button id="restartBtn">新开一局</button>
+    <div>
+      <h1>潮间带生态修复</h1>
+      <div>放置设施，控制污染，撑过潮汐周期。<span class="scene-info" id="sceneInfo"></span></div>
+    </div>
+    <div class="header-right">
+      <button id="switchSceneBtn" class="secondary">切换场景</button>
+      <button id="restartBtn">新开一局</button>
+    </div>
   </header>
   <main class="app">
     <aside class="panel">
@@ -73,29 +90,140 @@
       <button id="againBtn">再修复一次</button>
     </div>
   </div>
+  <div class="overlay" id="sceneOverlay">
+    <div class="modal scene-modal">
+      <h2>选择修复场景</h2>
+      <p>不同场景拥有不同的初始条件、挑战难度和修复目标。</p>
+      <div class="scene-list" id="sceneList"></div>
+      <div style="text-align:right;">
+        <button id="startSceneBtn">开始修复</button>
+      </div>
+    </div>
+  </div>
   <script>
     const gridEl = document.querySelector("#grid");
     const logEl = document.querySelector("#log");
     const overlay = document.querySelector("#overlay");
+    const sceneOverlay = document.querySelector("#sceneOverlay");
+    const sceneListEl = document.querySelector("#sceneList");
+    const sceneInfoEl = document.querySelector("#sceneInfo");
     const resultTitle = document.querySelector("#resultTitle");
     const resultText = document.querySelector("#resultText");
     const costs = { oyster: 12, grass: 10, pile: 8, erase: 0 };
     const icons = { oyster: "礁", grass: "草", pile: "桩", empty: "" };
+    const DEFAULT_SCENE_ID = "beginner";
+
+    const scenes = {
+      beginner: {
+        id: "beginner",
+        name: "入门滩涂",
+        desc: "平缓开阔的泥质滩涂，污染较轻，适合新手熟悉修复流程。",
+        budget: 150,
+        water: 55,
+        larvae: 25,
+        bio: 25,
+        turns: 10,
+        stormChance: 0.18,
+        pollutionIndices: [11, 23, 47, 71],
+        goalScore: 60,
+        goalDesc: "生态评分 ≥ 60",
+        tags: ["低难度", "预算充裕", "污染较少"],
+        winText: "滩涂生态恢复喜人！招潮蟹在泥穴间穿梭，白鹭翩然而至，这片湿地重新焕发了生机。",
+        loseText: "滩涂生态有所改善，但仍有提升空间。继续守护这片湿地，让更多生物回归。"
+      },
+      polluted: {
+        id: "polluted",
+        name: "污染湾口",
+        desc: "毗邻排污口的淤塞湾口，污染密集且扩散迅速，预算紧张。",
+        budget: 100,
+        water: 35,
+        larvae: 12,
+        bio: 12,
+        turns: 12,
+        stormChance: 0.22,
+        pollutionIndices: [2, 5, 14, 27, 38, 45, 53, 62, 78, 89],
+        goalScore: 55,
+        goalPollutionMax: 18,
+        goalDesc: "评分 ≥ 55 且污染 ≤ 18格",
+        tags: ["高难度", "预算紧张", "污染密集"],
+        winText: "湾口水质显著改善！排污口治理成效显现，曾经浑浊的海水重现清澈，鱼群开始回游。",
+        loseText: "污染压力依然沉重，治理成效有限。需要更科学的设施布局和更大力度的投入。"
+      },
+      storm: {
+        id: "storm",
+        name: "风暴前线",
+        desc: "直面外海的风暴潮通道，设施易被损毁，考验快速恢复能力。",
+        budget: 130,
+        water: 48,
+        larvae: 20,
+        bio: 18,
+        turns: 10,
+        stormChance: 0.45,
+        pollutionIndices: [7, 19, 35, 50, 68, 82],
+        goalScore: 50,
+        goalMinStats: 35,
+        goalDesc: "评分 ≥ 50 且所有指标 ≥ 35",
+        tags: ["中难度", "风暴频发", "设施易损"],
+        winText: "经受住风暴考验！潮间带防线固若金汤，即使风暴潮来袭，生态系统依然稳定运转。",
+        loseText: "风暴破坏超出预期，设施损失严重。需要更多围护桩构建可靠的防波防线。"
+      }
+    };
+
+    let currentSceneId = DEFAULT_SCENE_ID;
+    let selectedSceneId = DEFAULT_SCENE_ID;
     let tool = "oyster";
     let game;
+
+    function renderSceneList() {
+      sceneListEl.innerHTML = Object.values(scenes).map(s => `
+        <div class="scene-card ${s.id === selectedSceneId ? 'selected' : ''}" data-id="${s.id}">
+          <h3>${s.name}</h3>
+          <div class="desc">${s.desc}</div>
+          <div class="tags">
+            ${s.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+          </div>
+          <div style="margin-top:10px; font-size:12px; color:#4a5f5d;">
+            预算：${s.budget} | 回合：${s.turns} | 目标：${s.goalDesc}
+          </div>
+        </div>
+      `).join('');
+      sceneListEl.querySelectorAll('.scene-card').forEach(card => {
+        card.onclick = () => {
+          selectedSceneId = card.dataset.id;
+          renderSceneList();
+        };
+      });
+    }
+
+    function showSceneSelect() {
+      selectedSceneId = currentSceneId;
+      renderSceneList();
+      sceneOverlay.classList.remove('hidden');
+      overlay.classList.add('hidden');
+    }
+
+    function startGameWithScene(sceneId) {
+      currentSceneId = sceneId;
+      sceneOverlay.classList.add('hidden');
+      sceneInfoEl.textContent = `当前场景：${scenes[currentSceneId].name}`;
+      fresh();
+    }
+
     function fresh() {
+      const s = scenes[currentSceneId];
       game = {
-        turn: 1, budget: 120, water: 50, larvae: 20, bio: 20, ended: false,
-        cells: Array.from({ length: 96 }, (_, i) => ({ type: "empty", polluted: i % 23 === 0 || i === 71 })),
-        log: ["第1潮，退潮露出修复区。"]
+        turn: 1, budget: s.budget, water: s.water, larvae: s.larvae, bio: s.bio, ended: false,
+        cells: Array.from({ length: 96 }, (_, i) => ({ type: "empty", polluted: s.pollutionIndices.includes(i) })),
+        log: ["【" + s.name + "】第1潮，退潮露出修复区。目标：" + s.goalDesc]
       };
       overlay.classList.add("hidden");
       render();
     }
+
     function render() {
       gridEl.innerHTML = game.cells.map((cell, i) => '<div class="cell '+cell.type+(cell.polluted?' polluted':'')+'" data-i="'+i+'"><span>'+icons[cell.type]+'</span></div>').join("");
       document.querySelectorAll(".cell").forEach(cell => cell.onclick = () => place(Number(cell.dataset.i)));
-      document.querySelector("#turnText").textContent = game.turn + " / 10";
+      document.querySelector("#turnText").textContent = game.turn + " / " + scenes[currentSceneId].turns;
       document.querySelector("#budgetText").textContent = game.budget;
       document.querySelector("#waterText").textContent = Math.round(game.water);
       document.querySelector("#larvaeText").textContent = Math.round(game.larvae);
@@ -104,6 +232,7 @@
       logEl.innerHTML = game.log.map(item => '<div class="entry">'+item+'</div>').join("");
       document.querySelectorAll("[data-tool]").forEach(btn => btn.classList.toggle("active", btn.dataset.tool === tool));
     }
+
     function place(i) {
       if (game.ended) return;
       const cell = game.cells[i];
@@ -117,12 +246,15 @@
       game.log.unshift("放置" + (tool === "oyster" ? "牡蛎礁" : tool === "grass" ? "海草床" : "围护桩") + "。");
       render();
     }
+
     function neighbors(i) {
       const x = i % 12, y = Math.floor(i / 12);
       return [[x-1,y],[x+1,y],[x,y-1],[x,y+1]].filter(([a,b]) => a>=0 && a<12 && b>=0 && b<8).map(([a,b]) => b*12+a);
     }
+
     function nextTurn() {
       if (game.ended) return;
+      const s = scenes[currentSceneId];
       const oysters = game.cells.filter(c => c.type === "oyster").length;
       const grass = game.cells.filter(c => c.type === "grass").length;
       const piles = game.cells.filter(c => c.type === "pile").length;
@@ -132,13 +264,14 @@
       game.bio += grass * 1.8 + oysters * .4 - pollution * .5;
       game.budget += 8;
       spreadPollution(piles);
-      if (Math.random() < .24) storm();
+      if (Math.random() < s.stormChance) storm();
       game.water = clamp(game.water); game.larvae = clamp(game.larvae); game.bio = clamp(game.bio);
       game.log.unshift("第"+game.turn+"潮结束：牡蛎礁"+oysters+"处，海草床"+grass+"处，围护桩"+piles+"处。");
-      if (game.turn >= 10) return finish();
+      if (game.turn >= s.turns) return finish();
       game.turn += 1;
       render();
     }
+
     function spreadPollution(piles) {
       const newPolluted = new Set();
       game.cells.forEach((cell, i) => {
@@ -151,27 +284,43 @@
       newPolluted.forEach(i => game.cells[i].polluted = true);
       game.cells.forEach(cell => { if (cell.type === "oyster" && cell.polluted && Math.random() < .45) cell.polluted = false; });
     }
+
     function storm() {
       const placed = game.cells.filter(c => c.type !== "empty");
       if (placed.length && Math.random() < .55) placed[Math.floor(Math.random()*placed.length)].type = "empty";
       game.water -= 8;
       game.log.unshift("风暴潮冲刷了修复区，部分设施受损。");
     }
+
     function finish() {
       game.ended = true;
+      const s = scenes[currentSceneId];
       const pollution = game.cells.filter(c => c.polluted).length;
       const score = Math.round(game.water * .35 + game.larvae * .25 + game.bio * .35 + game.budget * .1 - pollution * 1.5);
-      resultTitle.textContent = score >= 65 ? "潮间带恢复良好" : "修复仍需加力";
-      resultText.textContent = "最终生态评分：" + score + "。水质" + Math.round(game.water) + "，幼体" + Math.round(game.larvae) + "，多样性" + Math.round(game.bio) + "。";
+
+      let win = score >= s.goalScore;
+      if (s.goalPollutionMax !== undefined && pollution > s.goalPollutionMax) win = false;
+      if (s.goalMinStats !== undefined) {
+        if (game.water < s.goalMinStats || game.larvae < s.goalMinStats || game.bio < s.goalMinStats) win = false;
+      }
+
+      resultTitle.textContent = win ? "修复成功" : "修复仍需加力";
+      resultText.textContent = s[win ? "winText" : "loseText"] + " 最终评分：" + score + "（水质" + Math.round(game.water) + "，幼体" + Math.round(game.larvae) + "，多样性" + Math.round(game.bio) + "，污染" + pollution + "格）。";
       overlay.classList.remove("hidden");
       render();
     }
+
     function clamp(v) { return Math.max(0, Math.min(100, v)); }
+
     document.querySelectorAll("[data-tool]").forEach(btn => btn.onclick = () => { tool = btn.dataset.tool; render(); });
     document.querySelector("#nextBtn").onclick = nextTurn;
     document.querySelector("#restartBtn").onclick = fresh;
     document.querySelector("#againBtn").onclick = fresh;
-    fresh();
+    document.querySelector("#switchSceneBtn").onclick = showSceneSelect;
+    document.querySelector("#startSceneBtn").onclick = () => startGameWithScene(selectedSceneId);
+
+    sceneInfoEl.textContent = `当前场景：${scenes[currentSceneId].name}`;
+    showSceneSelect();
   </script>
 </body>
 </html>
