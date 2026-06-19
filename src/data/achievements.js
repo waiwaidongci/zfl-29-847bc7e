@@ -4,6 +4,17 @@ export const ACHIEVEMENT_CATEGORIES = [
   { id: 'special', name: '特殊挑战', icon: '⭐' }
 ];
 
+function getFacilityUseHistory(game) {
+  const initial = game.replay?.snapshots?.[0] || {};
+  const placeEvents = game.replay?.events?.filter(e => e.type === 'place' && e.data) || [];
+
+  return {
+    oyster: (initial.oysters || 0) + placeEvents.filter(e => e.data.type === 'oyster').length,
+    grass: (initial.grass || 0) + placeEvents.filter(e => e.data.type === 'grass').length,
+    pile: (initial.piles || 0) + placeEvents.filter(e => e.data.type === 'pile').length
+  };
+}
+
 export const achievements = [
   {
     id: 'first_win',
@@ -187,8 +198,8 @@ export const achievements = [
     type: 'game',
     check: (stats, game, scene) => {
       if (!game || !game.ended || !stats.lastWin) return false;
-      const oysterPlaced = game.replay.events.some(e => e.type === 'place' && e.data && e.data.type === 'oyster');
-      return !oysterPlaced;
+      const used = getFacilityUseHistory(game);
+      return used.oyster === 0;
     }
   },
   {
@@ -237,11 +248,8 @@ export const achievements = [
     type: 'game',
     check: (stats, game, scene) => {
       if (!game || !game.ended || !stats.lastWin) return false;
-      const placeEvents = game.replay.events.filter(e => e.type === 'place' && e.data);
-      if (placeEvents.length === 0) return false;
-      const hasOyster = placeEvents.some(e => e.data.type === 'oyster');
-      const hasOther = placeEvents.some(e => e.data.type === 'grass' || e.data.type === 'pile');
-      return hasOyster && !hasOther;
+      const used = getFacilityUseHistory(game);
+      return used.oyster > 0 && used.grass === 0 && used.pile === 0;
     }
   }
 ];
