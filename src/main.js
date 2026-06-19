@@ -47,8 +47,7 @@ import {
   clearEditorError,
   buildSandboxScene,
   readParamsFromDOM,
-  writeParamsToDOM,
-  applyCellsAndParams
+  writeParamsToDOM
 } from './editor/sandbox.js';
 import {
   generateChallengeCode,

@@ -1,4 +1,4 @@
-import { GRID_SIZE, GRID_COLS } from '../game/constants.js';
+import { GRID_SIZE } from '../game/constants.js';
 
 function createEmptyCells() {
   return Array.from({ length: GRID_SIZE }, () => ({ type: 'empty', polluted: false }));
