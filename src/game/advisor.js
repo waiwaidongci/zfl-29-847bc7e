@@ -15,7 +15,14 @@ import {
   POLLUTION_WATER_PENALTY,
   POLLUTION_LARVAE_PENALTY,
   POLLUTION_BIO_PENALTY,
-  TURN_BUDGET_BONUS
+  TURN_BUDGET_BONUS,
+  STORM_DAMAGE_CHANCE,
+  STORM_WATER_PENALTY,
+  SCORE_WATER_WEIGHT,
+  SCORE_LARVAE_WEIGHT,
+  SCORE_BIO_WEIGHT,
+  SCORE_BUDGET_WEIGHT,
+  SCORE_POLLUTION_PENALTY
 } from './constants.js';
 import { getNeighbors, getFacilityCounts } from './state.js';
 
@@ -368,7 +375,8 @@ export function generateAdvice(game, scene) {
   return {
     urgency: urgency.urgency,
     summary: generateSummary(urgency, pollution, remainingTurns, budget),
-    suggestions: suggestions.slice(0, 3)
+    suggestions: suggestions.slice(0, 3),
+    roadmap: generateRoadmap(game, scene)
   };
 }
 
@@ -388,4 +396,463 @@ function generateSummary(urgency, pollution, remainingTurns, budget) {
   parts.push(`预算${budget}`);
 
   return parts.join(' · ');
+}
+
+function cloneCells(cells) {
+  return cells.map(cell => ({ ...cell }));
+}
+
+function projectScore(cells, budget, water, larvae, bio) {
+  const pollution = cells.filter(c => c.polluted).length;
+  return Math.round(
+    water * SCORE_WATER_WEIGHT +
+    larvae * SCORE_LARVAE_WEIGHT +
+    bio * SCORE_BIO_WEIGHT +
+    budget * SCORE_BUDGET_WEIGHT -
+    pollution * SCORE_POLLUTION_PENALTY
+  );
+}
+
+function simulatePollutionSpread(cells) {
+  const piles = cells.filter(c => c.type === 'pile').length;
+  const spreadChance = Math.max(
+    POLLUTION_SPREAD_MIN,
+    POLLUTION_SPREAD_BASE - piles * POLLUTION_SPREAD_PILE_REDUCTION
+  );
+
+  const newPolluted = new Set();
+  cells.forEach((cell, i) => {
+    if (!cell.polluted) return;
+    for (const n of getNeighbors(i)) {
+      if (cells[n].type === 'pile' || cells[n].polluted) continue;
+      newPolluted.add(n);
+    }
+  });
+
+  newPolluted.forEach(i => {
+    cells[i].polluted = true;
+  });
+
+  cells.forEach(cell => {
+    if (cell.type === 'oyster' && cell.polluted) {
+      cell.polluted = false;
+    }
+  });
+
+  return newPolluted.size;
+}
+
+function simulateEcosystem(cells, water, larvae, bio) {
+  const oysters = cells.filter(c => c.type === 'oyster').length;
+  const grass = cells.filter(c => c.type === 'grass').length;
+  const pollution = cells.filter(c => c.polluted).length;
+
+  water += oysters * OYSTER_WATER_BONUS - pollution * POLLUTION_WATER_PENALTY;
+  larvae += oysters * OYSTER_LARVAE_BONUS + grass * GRASS_LARVAE_BONUS - pollution * POLLUTION_LARVAE_PENALTY;
+  bio += grass * GRASS_BIO_BONUS + oysters * OYSTER_BIO_BONUS - pollution * POLLUTION_BIO_PENALTY;
+
+  water = Math.max(0, Math.min(100, water));
+  larvae = Math.max(0, Math.min(100, larvae));
+  bio = Math.max(0, Math.min(100, bio));
+
+  return { water, larvae, bio };
+}
+
+function pickBestDeployment(cells, budget, remainingTurns, urgency) {
+  const candidates = evaluateAllCandidates(cells, budget, remainingTurns, urgency);
+  if (candidates.length === 0) return null;
+  return candidates[0].deployment;
+}
+
+function evaluateAllCandidates(cells, budget, remainingTurns, urgency) {
+  const piles = cells.filter(c => c.type === 'pile').length;
+  const riskMap = calculatePollutionSpreadRisk(cells, piles);
+  const { pileValues } = calculateBestPilePositions(cells);
+  const candidates = [];
+
+  const highRiskPositions = Array.from(riskMap.entries())
+    .filter(([, risk]) => risk >= POLLUTION_SPREAD_BASE * 0.8)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (highRiskPositions.length > 0) {
+    for (let i = 0; i < Math.min(2, highRiskPositions.length); i++) {
+      const [targetIndex, risk] = highRiskPositions[i];
+      let pileValue = pileValues.get(targetIndex) || 0;
+      if (pileValue === 0) {
+        getNeighbors(targetIndex).forEach(n => {
+          if (cells[n].polluted) pileValue++;
+        });
+      }
+      if (pileValue > 0) {
+        const score = pileValue * 10 + risk * 100 + (urgency === 'critical' ? 50 : 0);
+        const pos = getXY(targetIndex);
+        candidates.push({
+          type: 'pile',
+          score,
+          scoreBreakdown: {
+            blockValue: pileValue * 10,
+            riskBonus: Math.round(risk * 100),
+            urgencyBonus: urgency === 'critical' ? 50 : 0
+          },
+          deployment: {
+            type: 'pile',
+            targetIndex,
+            cost: COSTS.pile,
+            benefit: `阻挡${pileValue}个方向的污染扩散，预计减少${Math.round(risk * 100)}%扩散风险`,
+            detailedBenefit: {
+              blockedDirections: pileValue,
+              riskReduction: Math.round(risk * 100),
+              estimatedScoreGain: Math.round(score)
+            },
+            reason: `位置(${pos.x + 1},${pos.y + 1})扩散风险${Math.round(risk * 100)}%，封堵后可保护${pileValue}个相邻格`,
+            relatedCells: Array.from(new Set([targetIndex, ...getNeighbors(targetIndex).filter(n => cells[n].polluted)]))
+          }
+        });
+      }
+    }
+  }
+
+  const pollutedEmptyIndices = cells
+    .map((cell, i) => ({ cell, i }))
+    .filter(({ cell }) => cell.polluted && cell.type === 'empty')
+    .map(({ i }) => i);
+
+  if (pollutedEmptyIndices.length > 0) {
+    const oysterCandidates = pollutedEmptyIndices
+      .map(index => ({ index, info: calculateOysterValue(cells, index, remainingTurns) }))
+      .sort((a, b) => b.info.value - a.info.value)
+      .slice(0, 2);
+
+    oysterCandidates.forEach(({ index, info }) => {
+      const pos = getXY(index);
+      candidates.push({
+        type: 'oyster',
+        score: info.value,
+        scoreBreakdown: {
+          cleanValue: Math.round(info.value * 0.6),
+          ecoBonus: Math.round(info.value * 0.4)
+        },
+        deployment: {
+          type: 'oyster',
+          targetIndex: index,
+          cost: COSTS.oyster,
+          benefit: `预计挽回${Math.round(info.value)}点属性损失，有${Math.round(OYSTER_CLEAN_CHANCE * 100)}%概率每回合净化该格`,
+          detailedBenefit: {
+            pollutionCleaned: Math.round(OYSTER_CLEAN_CHANCE * remainingTurns),
+            ecoGainPerTurn: (OYSTER_WATER_BONUS + OYSTER_LARVAE_BONUS + OYSTER_BIO_BONUS).toFixed(1),
+            totalEcoGain: Math.round(info.value)
+          },
+          reason: info.reason,
+          relatedCells: info.relatedCells
+        }
+      });
+    });
+  }
+
+  if (urgency !== 'critical') {
+    const grassCandidates = [];
+    cells.forEach((cell, index) => {
+      if (cell.type !== 'empty' || cell.polluted) return;
+      const info = calculateGrassValue(cells, index, remainingTurns);
+      if (info.value > 0) {
+        grassCandidates.push({ index, info });
+      }
+    });
+
+    grassCandidates
+      .sort((a, b) => b.info.value - a.info.value)
+      .slice(0, 2)
+      .forEach(({ index, info }) => {
+        const pos = getXY(index);
+        candidates.push({
+          type: 'grass',
+          score: info.value * 0.8,
+          scoreBreakdown: {
+            ecoValue: Math.round(info.value * 0.7),
+            clusterBonus: Math.round(info.value * 0.1)
+          },
+          deployment: {
+            type: 'grass',
+            targetIndex: index,
+            cost: COSTS.grass,
+            benefit: `预计贡献${Math.round(info.value)}点生态值，提升生物多样性`,
+            detailedBenefit: {
+              ecoGainPerTurn: (GRASS_LARVAE_BONUS + GRASS_BIO_BONUS).toFixed(1),
+              totalEcoGain: Math.round(info.value)
+            },
+            reason: info.reason,
+            relatedCells: info.relatedCells
+          }
+        });
+      });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+
+  candidates.forEach((c, idx) => {
+    if (idx === 0) {
+      c.deployment.rejectionReason = null;
+    } else {
+      const best = candidates[0];
+      const scoreDiff = Math.round(best.score - c.score);
+      const reasons = [];
+
+      if (c.type !== best.type) {
+        const typePriority = { pile: 3, oyster: 2, grass: 1 };
+        if (typePriority[c.type] < typePriority[best.type]) {
+          if (urgency === 'critical' && c.type === 'grass') {
+            reasons.push('当前局势危急，需优先控制污染而非发展生态');
+          } else if (best.type === 'pile' && c.type !== 'pile') {
+            reasons.push('污染扩散风险过高，封堵优先级高于净化/生态建设');
+          } else if (best.type === 'oyster' && c.type === 'grass') {
+            reasons.push('存在未处理的污染格，净化优先级高于生态建设');
+          }
+        }
+      }
+
+      if (c.deployment.cost > best.deployment.cost) {
+        reasons.push(`成本更高(多${c.deployment.cost - best.deployment.cost}预算)`);
+      }
+
+      reasons.push(`综合评分低${scoreDiff}分`);
+      c.deployment.rejectionReason = reasons.join('；');
+    }
+
+    c.deployment.comparativeScore = {
+      self: Math.round(c.score),
+      best: Math.round(candidates[0].score),
+      difference: idx === 0 ? 0 : Math.round(candidates[0].score - c.score)
+    };
+  });
+
+  return candidates;
+}
+
+export function generateRoadmap(game, scene) {
+  const { cells, budget, turn, water, larvae, bio } = game;
+  const remainingTurns = scene.turns - turn + 1;
+  const { pollution } = getFacilityCounts(game);
+
+  const maxSteps = Math.min(3, remainingTurns);
+  if (maxSteps <= 0) return [];
+
+  const roadmap = [];
+  let simCells = cloneCells(cells);
+  let simBudget = budget;
+  let simWater = water;
+  let simLarvae = larvae;
+  let simBio = bio;
+
+  const initialScore = projectScore(cells, budget, water, larvae, bio);
+  const totalProjectedGain = { water: 0, larvae: 0, bio: 0 };
+
+  for (let step = 0; step < maxSteps; step++) {
+    const tideNumber = turn + step;
+    const futureRemainingTurns = scene.turns - tideNumber + 1;
+    const piles = simCells.filter(c => c.type === 'pile').length;
+    const currentPollution = simCells.filter(c => c.polluted).length;
+    const urgencyInfo = analyzeUrgency(simCells, futureRemainingTurns, simBudget);
+    const riskMap = calculatePollutionSpreadRisk(simCells, piles);
+    const maxRisk = Math.max(0, ...Array.from(riskMap.values()));
+
+    const currentScore = projectScore(simCells, simBudget, simWater, simLarvae, simBio);
+    const goalGap = Math.max(0, scene.goalScore - currentScore);
+
+    const allCandidates = evaluateAllCandidates(simCells, simBudget, futureRemainingTurns, urgencyInfo.urgency);
+    if (allCandidates.length === 0) break;
+
+    const deployment = allCandidates[0].deployment;
+    const alternatives = allCandidates.slice(1, 4).map(c => ({
+      type: c.deployment.type,
+      targetIndex: c.deployment.targetIndex,
+      cost: c.deployment.cost,
+      benefit: c.deployment.benefit,
+      rejectionReason: c.deployment.rejectionReason,
+      comparativeScore: c.deployment.comparativeScore
+    }));
+
+    const executable = simBudget >= deployment.cost;
+
+    const stormRisk = evaluateStormRisk(simCells, scene.stormChance, deployment);
+    const budgetProjection = projectBudget(simBudget, step, maxSteps, deployment.cost, executable);
+    const goalAnalysis = analyzeGoalProgress(scene, currentScore, goalGap, deployment, step, maxSteps);
+
+    roadmap.push({
+      tide: tideNumber,
+      stepIndex: step,
+      executable,
+      type: deployment.type,
+      targetIndex: deployment.targetIndex,
+      cost: deployment.cost,
+      benefit: deployment.benefit,
+      detailedBenefit: deployment.detailedBenefit,
+      reason: deployment.reason,
+      projectedBudget: simBudget,
+      budgetAfter: executable ? simBudget - deployment.cost : simBudget + TURN_BUDGET_BONUS - deployment.cost,
+      budgetProjection,
+      pollutionRisk: maxRisk,
+      pollutionCount: currentPollution,
+      stormProbability: scene.stormChance,
+      stormRisk,
+      goalGap,
+      goalAnalysis,
+      urgency: urgencyInfo.urgency,
+      relatedCells: deployment.relatedCells,
+      alternatives,
+      comparativeScore: deployment.comparativeScore,
+      projectedStats: {
+        water: Math.round(simWater),
+        larvae: Math.round(simLarvae),
+        bio: Math.round(simBio)
+      },
+      sceneGoals: extractSceneGoals(scene)
+    });
+
+    if (executable) {
+      simCells[deployment.targetIndex].type = deployment.type;
+      simBudget -= deployment.cost;
+    }
+
+    if (step < maxSteps - 1) {
+      const beforePollution = simCells.filter(c => c.polluted).length;
+      simulatePollutionSpread(simCells);
+      const afterPollution = simCells.filter(c => c.polluted).length;
+
+      const ecoResult = simulateEcosystem(simCells, simWater, simLarvae, simBio);
+      totalProjectedGain.water += ecoResult.water - simWater;
+      totalProjectedGain.larvae += ecoResult.larvae - simLarvae;
+      totalProjectedGain.bio += ecoResult.bio - simBio;
+      simWater = ecoResult.water;
+      simLarvae = ecoResult.larvae;
+      simBio = ecoResult.bio;
+      simBudget += TURN_BUDGET_BONUS;
+    }
+  }
+
+  if (roadmap.length > 0) {
+    const finalProjectedScore = projectScore(simCells, simBudget, simWater, simLarvae, simBio);
+    roadmap._summary = {
+      totalSteps: roadmap.length,
+      initialScore,
+      projectedFinalScore: finalProjectedScore,
+      projectedScoreGain: finalProjectedScore - initialScore,
+      totalCost: roadmap.reduce((sum, s) => sum + s.cost, 0),
+      budgetRemaining: simBudget,
+      projectedPollution: simCells.filter(c => c.polluted).length,
+      goalReached: finalProjectedScore >= scene.goalScore,
+      goalGapRemaining: Math.max(0, scene.goalScore - finalProjectedScore),
+      sceneGoalDesc: scene.goalDesc,
+      warnings: generateRoadmapWarnings(roadmap, scene, simCells)
+    };
+  }
+
+  return roadmap;
+}
+
+function evaluateStormRisk(cells, stormChance, deployment) {
+  const vulnerableTypes = ['oyster', 'grass'];
+  const isVulnerable = vulnerableTypes.includes(deployment.type);
+  const currentFacilities = cells.filter(c => c.type !== 'empty').length;
+
+  return {
+    facilityVulnerable: isVulnerable,
+    damageChance: isVulnerable ? Math.round(stormChance * STORM_DAMAGE_CHANCE * 100) : 0,
+    protectionLevel: cells.filter(c => c.type === 'pile').length,
+    recommendation: stormChance > 0.35 && isVulnerable
+      ? `风暴概率${Math.round(stormChance * 100)}%，该设施有损毁风险，建议配合围护桩使用`
+      : stormChance > 0.35 && deployment.type === 'pile'
+        ? '围护桩可抵御风暴，适合当前高风暴风险环境'
+        : '风暴风险可控'
+  };
+}
+
+function projectBudget(currentBudget, stepIndex, totalSteps, cost, executable) {
+  const futureTurns = totalSteps - stepIndex - 1;
+  const futureIncome = futureTurns * TURN_BUDGET_BONUS;
+  const totalAvailable = currentBudget + futureIncome;
+  const remainingAfterThis = executable
+    ? currentBudget - cost + futureIncome
+    : currentBudget + TURN_BUDGET_BONUS - cost + (futureTurns - 1) * TURN_BUDGET_BONUS;
+
+  return {
+    futureIncome,
+    totalAvailableBudget: totalAvailable,
+    remainingAfterDeployment: Math.max(0, remainingAfterThis),
+    canAffordFutureSteps: remainingAfterThis >= Math.min(COSTS.pile, COSTS.grass),
+    budgetPerTurn: TURN_BUDGET_BONUS
+  };
+}
+
+function analyzeGoalProgress(scene, currentScore, goalGap, deployment, stepIndex, totalSteps) {
+  const estimatedGain = deployment.detailedBenefit
+    ? (deployment.detailedBenefit.estimatedScoreGain || deployment.detailedBenefit.totalEcoGain || 0)
+    : 0;
+  const remainingSteps = totalSteps - stepIndex;
+  const requiredGainPerStep = remainingSteps > 0 ? Math.ceil(goalGap / remainingSteps) : goalGap;
+
+  return {
+    currentScore,
+    goalScore: scene.goalScore,
+    goalGap,
+    estimatedGainFromThis: estimatedGain,
+    requiredPerRemainingStep: requiredGainPerStep,
+    onTrack: estimatedGain >= requiredGainPerStep * 0.8,
+    paceAssessment: estimatedGain >= requiredGainPerStep
+      ? '此步收益达标，按进度可达成目标'
+      : estimatedGain >= requiredGainPerStep * 0.5
+        ? '此步收益基本达标，后续需持续高效部署'
+        : '此步收益偏低，后续需更优策略'
+  };
+}
+
+function extractSceneGoals(scene) {
+  const goals = [];
+  goals.push({
+    type: 'score',
+    label: '目标评分',
+    target: scene.goalScore,
+    description: `评分 ≥ ${scene.goalScore}`
+  });
+  if (scene.goalPollutionMax !== undefined) {
+    goals.push({
+      type: 'pollution',
+      label: '污染上限',
+      target: scene.goalPollutionMax,
+      description: `污染 ≤ ${scene.goalPollutionMax}格`
+    });
+  }
+  if (scene.goalMinStats !== undefined) {
+    goals.push({
+      type: 'minStats',
+      label: '最低属性',
+      target: scene.goalMinStats,
+      description: `水质/幼体/生物 ≥ ${scene.goalMinStats}`
+    });
+  }
+  return goals;
+}
+
+function generateRoadmapWarnings(roadmap, scene, finalCells) {
+  const warnings = [];
+  const finalPollution = finalCells.filter(c => c.polluted).length;
+
+  if (scene.goalPollutionMax !== undefined && finalPollution > scene.goalPollutionMax) {
+    warnings.push(`预计最终污染${finalPollution}格，超出目标${scene.goalPollutionMax}格上限，需加强封堵和净化`);
+  }
+
+  const hasPlannedSteps = roadmap.some(s => !s.executable);
+  if (hasPlannedSteps) {
+    warnings.push('部分步骤需等待后续预算收入，建议按计划推进');
+  }
+
+  const highStormRisk = roadmap.some(s => s.stormProbability > 0.35 && s.stormRisk.facilityVulnerable);
+  if (highStormRisk && roadmap.filter(s => s.type === 'pile').length < 1) {
+    warnings.push('风暴风险较高，建议适当增加围护桩保护设施');
+  }
+
+  if (roadmap._summary && !roadmap._summary.goalReached) {
+    warnings.push(`按当前路线预计仍差${roadmap._summary.goalGapRemaining}分，需要寻找更优部署方案`);
+  }
+
+  return warnings;
 }
