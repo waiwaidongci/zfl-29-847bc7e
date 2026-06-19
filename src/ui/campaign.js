@@ -238,9 +238,8 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
               <button class="turn-replay-btn" id="campaignReplayFirstBtn" title="第一潮">⏮</button>
               <button class="turn-replay-btn" id="campaignReplayPrevBtn" title="上一潮">◀</button>
               <div class="turn-replay-turn-info">
-                <span>第</span>
                 <select id="campaignReplayTurnSelect"></select>
-                <span>潮 / 共 <strong id="campaignReplayTotalTurns">0</strong> 潮</span>
+                <span>/ 共 <strong id="campaignReplayTotalTurns">0</strong> 潮</span>
               </div>
               <button class="turn-replay-btn" id="campaignReplayNextBtn" title="下一潮">▶</button>
               <button class="turn-replay-btn" id="campaignReplayLastBtn" title="最后潮">⏭</button>
@@ -355,9 +354,10 @@ function initCampaignTurnReplay(overlayEl, replayData) {
   const totalTurnsEl = overlayEl.querySelector('#campaignReplayTotalTurns');
 
   if (turnSelect) {
-    turnSelect.innerHTML = snapshots.map((s, i) => 
-      `<option value="${i}">${s.turn}</option>`
-    ).join('');
+    turnSelect.innerHTML = snapshots.map((s, i) => {
+      const label = s.turn === 0 ? '初始' : `第${s.turn}潮`;
+      return `<option value="${i}">${label}</option>`;
+    }).join('');
     turnSelect.onchange = () => {
       campaignReplayState.currentIndex = parseInt(turnSelect.value, 10);
       renderCampaignTurnReplay();
@@ -365,7 +365,8 @@ function initCampaignTurnReplay(overlayEl, replayData) {
   }
 
   if (totalTurnsEl) {
-    totalTurnsEl.textContent = snapshots.length;
+    const actualTurns = snapshots.length - 1;
+    totalTurnsEl.textContent = actualTurns > 0 ? actualTurns : snapshots.length;
   }
 
   bindCampaignTurnReplayControls();
@@ -467,7 +468,7 @@ function renderCampaignReplayStats(snapshot) {
   statsEl.innerHTML = `
     <div class="replay-stat">
       <span class="replay-stat-label">回合</span>
-      <span class="replay-stat-value">${snapshot.turn}</span>
+      <span class="replay-stat-value">${snapshot.turn === 0 ? '初始' : '第' + snapshot.turn + '潮'}</span>
     </div>
     <div class="replay-stat">
       <span class="replay-stat-label">预算</span>

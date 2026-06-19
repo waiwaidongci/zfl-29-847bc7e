@@ -122,9 +122,10 @@ export function initTurnReplay(replay) {
   const totalTurnsEl = document.querySelector('#replayTotalTurns');
 
   if (turnSelect) {
-    turnSelect.innerHTML = snapshots.map((s, i) => 
-      `<option value="${i}">${s.turn}</option>`
-    ).join('');
+    turnSelect.innerHTML = snapshots.map((s, i) => {
+      const label = s.turn === 0 ? '初始' : `第${s.turn}潮`;
+      return `<option value="${i}">${label}</option>`;
+    }).join('');
     turnSelect.onchange = () => {
       currentReplayTurnIndex = parseInt(turnSelect.value, 10);
       renderTurnReplay();
@@ -132,7 +133,8 @@ export function initTurnReplay(replay) {
   }
 
   if (totalTurnsEl) {
-    totalTurnsEl.textContent = snapshots.length;
+    const actualTurns = snapshots.length - 1;
+    totalTurnsEl.textContent = actualTurns > 0 ? actualTurns : snapshots.length;
   }
 
   bindTurnReplayControls();
@@ -228,7 +230,7 @@ function renderReplayStats(snapshot) {
   statsEl.innerHTML = `
     <div class="replay-stat">
       <span class="replay-stat-label">回合</span>
-      <span class="replay-stat-value">${snapshot.turn}</span>
+      <span class="replay-stat-value">${snapshot.turn === 0 ? '初始' : '第' + snapshot.turn + '潮'}</span>
     </div>
     <div class="replay-stat">
       <span class="replay-stat-label">预算</span>
@@ -332,10 +334,13 @@ function renderTrendChart(replay) {
   const chartW = W - paddingL - paddingR;
   const chartH = H - paddingT - paddingB;
 
+  const hasTurnZero = snapshots[0].turn === 0;
   const maxTurn = Math.max(...snapshots.map(s => s.turn));
+  const minTurn = hasTurnZero ? 0 : 1;
+  const turnRange = maxTurn - minTurn;
   const maxVal = 100;
 
-  const xFor = turn => paddingL + (turn - 1) * chartW / Math.max(1, maxTurn - 1);
+  const xFor = turn => paddingL + (turn - minTurn) * chartW / Math.max(1, turnRange);
   const yFor = val => paddingT + chartH - (val / maxVal) * chartH;
 
   let parts = [];
@@ -349,9 +354,10 @@ function renderTrendChart(replay) {
     parts.push(`<text x="${paddingL - 6}" y="${y + 4}" text-anchor="end" fill="#8a9a98" font-size="10">${v}</text>`);
   }
 
-  for (let t = 1; t <= maxTurn; t++) {
+  for (let t = minTurn; t <= maxTurn; t++) {
     const x = xFor(t);
-    parts.push(`<text x="${x}" y="${paddingT + chartH + 18}" text-anchor="middle" fill="#8a9a98" font-size="10">潮${t}</text>`);
+    const label = t === 0 ? '初始' : `潮${t}`;
+    parts.push(`<text x="${x}" y="${paddingT + chartH + 18}" text-anchor="middle" fill="#8a9a98" font-size="10">${label}</text>`);
   }
 
   CHART_METRICS.forEach(metric => {
@@ -497,12 +503,13 @@ function renderEventTimeline(replay) {
 
   el.innerHTML = displayEvents.map(ev => {
     const meta = importantTypes[ev.type] || { icon: '📌', label: ev.type };
+    const turnLabel = ev.turn === 0 ? '初始' : `第${ev.turn}潮`;
     return `
       <div class="timeline-item timeline-${ev.type}">
         <div class="timeline-dot">${meta.icon}</div>
         <div class="timeline-content">
           <div class="timeline-header">
-            <span class="timeline-tag">第${ev.turn}潮 · ${meta.label}</span>
+            <span class="timeline-tag">${turnLabel} · ${meta.label}</span>
           </div>
           <div class="timeline-message">${ev.message}</div>
         </div>

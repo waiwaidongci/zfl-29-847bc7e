@@ -106,7 +106,7 @@ export function createGameState(scene, options) {
       seedStr: seedToString(seed),
       gameMode,
       snapshots: [{
-        turn: 1,
+        turn: 0,
         water: scene.water,
         larvae: scene.larvae,
         bio: scene.bio,
@@ -118,7 +118,7 @@ export function createGameState(scene, options) {
         cells: serializeCells(cells)
       }],
       events: [{
-        turn: 1,
+        turn: 0,
         type: 'start',
         message: `开始修复：${scene.name}，目标：${scene.goalDesc}`
       }]
