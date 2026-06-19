@@ -13,6 +13,7 @@
       <div>放置设施，控制污染，撑过潮汐周期。<span class="scene-info" id="sceneInfo"></span></div>
     </div>
     <div class="header-right">
+      <button id="leaderboardBtn" class="secondary">🏅 排行榜 <span class="lb-btn-badge">0</span></button>
       <button id="achievementsBtn" class="secondary">🏆 成就 <span class="achievements-badge">0/21</span></button>
       <button id="codexBtn" class="secondary">📖 图鉴 <span class="codex-badge">0/11</span></button>
       <button id="switchSceneBtn" class="secondary">切换场景</button>
@@ -43,6 +44,7 @@
         <div class="stat"><span>幼体</span><strong id="larvaeText">20</strong></div>
         <div class="stat"><span>多样性</span><strong id="bioText">20</strong></div>
         <div class="stat"><span>污染</span><strong id="pollutionText">0</strong></div>
+        <div class="stat stat-seed"><span>种子</span><strong id="seedText">-</strong></div>
       </div>
       <h2>策略顾问</h2>
       <div class="advisor" id="advisor"></div>
@@ -51,6 +53,7 @@
     </aside>
   </main>
   <div class="overlay hidden" id="achievementsOverlay"></div>
+  <div class="overlay hidden" id="leaderboardOverlay"></div>
   <div class="overlay hidden" id="codexOverlay"></div>
   <div class="overlay hidden" id="overlay">
     <div class="modal result-modal">
@@ -100,6 +103,12 @@
         </div>
         <div class="error-tip" id="challengeError"></div>
         <div class="challenge-preview" id="challengePreview"></div>
+      </div>
+      <div class="seed-input-section">
+        <div class="challenge-import-label">🎲 指定种子（可选）</div>
+        <div class="challenge-import-row">
+          <input type="text" id="seedInput" placeholder="留空随机，输入种子可重玩同一种子">
+        </div>
       </div>
       <div style="text-align:right;">
         <button id="startSceneBtn">开始修复</button>

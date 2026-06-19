@@ -28,6 +28,7 @@ import {
   GRID_ROWS
 } from './constants.js';
 import { unlockByEvent } from './codex.js';
+import { createRNG, generateSeed, seedToString } from './seeded-random.js';
 
 function createEmptyCells() {
   return Array.from({ length: GRID_SIZE }, () => ({
@@ -50,7 +51,8 @@ function cloneCells(cells) {
   return cells.map(cell => ({ ...cell }));
 }
 
-export function createGameState(scene) {
+export function createGameState(scene, options) {
+  const opts = options || {};
   let cells;
   if (scene.initialCells) {
     cells = cloneCells(scene.initialCells);
@@ -59,6 +61,14 @@ export function createGameState(scene) {
   }
 
   const { oysters, grass, piles, pollution } = getFacilityCountsFromCells(cells);
+
+  const seed = opts.seed != null ? (opts.seed | 0) : generateSeed();
+  const rng = createRNG(seed);
+
+  let gameMode = 'standard';
+  if (scene.id === 'sandbox') {
+    gameMode = scene.fromChallenge ? 'challenge' : 'sandbox';
+  }
 
   return {
     turn: 1,
@@ -69,11 +79,19 @@ export function createGameState(scene) {
     ended: false,
     cells,
     log: [`【${scene.name}】第1潮，退潮露出修复区。目标：${scene.goalDesc}`],
+    seed,
+    seedStr: seedToString(seed),
+    rng,
+    gameMode,
+    startTime: Date.now(),
     replay: {
       sceneId: scene.id,
       sceneName: scene.name,
       goalDesc: scene.goalDesc,
       goalScore: scene.goalScore,
+      seed,
+      seedStr: seedToString(seed),
+      gameMode,
       snapshots: [{
         turn: 1,
         water: scene.water,
@@ -193,7 +211,7 @@ export function spreadPollution(game, piles) {
         POLLUTION_SPREAD_MIN,
         POLLUTION_SPREAD_BASE - piles * POLLUTION_SPREAD_PILE_REDUCTION
       );
-      if (Math.random() < spreadChance) {
+      if (game.rng.random() < spreadChance) {
         newPolluted.add(n);
       }
     }
@@ -211,7 +229,7 @@ export function spreadPollution(game, piles) {
   let oysterCleaned = false;
   let cleanedCount = 0;
   game.cells.forEach(cell => {
-    if (cell.type === 'oyster' && cell.polluted && Math.random() < OYSTER_CLEAN_CHANCE) {
+    if (cell.type === 'oyster' && cell.polluted && game.rng.random() < OYSTER_CLEAN_CHANCE) {
       cell.polluted = false;
       oysterCleaned = true;
       cleanedCount++;
@@ -228,8 +246,8 @@ export function triggerStorm(game) {
   const placed = game.cells.filter(c => c.type !== CELL_TYPES.EMPTY);
   let damaged = false;
   let damagedType = null;
-  if (placed.length && Math.random() < STORM_DAMAGE_CHANCE) {
-    const idx = Math.floor(Math.random() * placed.length);
+  if (placed.length && game.rng.random() < STORM_DAMAGE_CHANCE) {
+    const idx = Math.floor(game.rng.random() * placed.length);
     damagedType = placed[idx].type;
     placed[idx].type = CELL_TYPES.EMPTY;
     damaged = true;

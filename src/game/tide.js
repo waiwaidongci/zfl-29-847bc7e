@@ -19,7 +19,7 @@ export function advanceTurn(game, scene) {
   applyEcosystemEffects(game);
   spreadPollution(game, piles);
 
-  if (Math.random() < scene.stormChance) {
+  if (game.rng.random() < scene.stormChance) {
     triggerStorm(game);
   }
 

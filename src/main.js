@@ -57,6 +57,17 @@ import {
   applyDecodedToEditor
 } from './editor/challenge.js';
 import { COSTS } from './game/constants.js';
+import { seedFromString } from './game/seeded-random.js';
+import {
+  loadLeaderboardState,
+  addEntry,
+  getCategoryStats
+} from './game/leaderboard.js';
+import {
+  showLeaderboard,
+  hideLeaderboard,
+  updateLeaderboardButton
+} from './ui/leaderboard.js';
 import {
   renderSceneList,
   showSceneSelect,
@@ -95,6 +106,10 @@ const challengeOutput = document.querySelector('#challengeOutput');
 const challengeGenBtn = document.querySelector('#challengeGenBtn');
 const challengeCopyBtn = document.querySelector('#challengeCopyBtn');
 const challengeGenErrorEl = document.querySelector('#challengeGenError');
+const leaderboardOverlay = document.querySelector('#leaderboardOverlay');
+const leaderboardBtn = document.querySelector('#leaderboardBtn');
+const seedInputEl = document.querySelector('#seedInput');
+const seedTextEl = document.querySelector('#seedText');
 
 let highlightedCells = [];
 let currentAdvice = null;
@@ -115,6 +130,7 @@ function fullRender() {
     renderGrid(gridEl, game.cells, i => handlePlace(i));
   }
   renderStats(game, scene);
+  seedTextEl.textContent = game.seedStr;
   renderLog(logEl, game.log);
   renderToolButtons(currentTool);
   updateAdvisor();
@@ -187,7 +203,17 @@ function handleApplySuggestion(suggestion) {
 function startNewGame(sceneId) {
   currentSceneId = sceneId;
   const scene = getScene(sceneId);
-  game = createGameState(scene);
+
+  let seed = undefined;
+  if (seedInputEl && seedInputEl.value.trim()) {
+    const parsed = seedFromString(seedInputEl.value.trim());
+    if (parsed !== null) {
+      seed = parsed;
+    }
+  }
+  if (seedInputEl) seedInputEl.value = '';
+
+  game = createGameState(scene, { seed });
   lastEventCount = game.replay.events.length;
   updateSceneInfo(sceneInfoEl, scene.name);
   hideOverlay(overlay);
@@ -221,6 +247,7 @@ function handleNextTurn() {
     if (newlyUnlocked.length > 0) {
       updateAchievementsButton(achievementsBtn);
     }
+    recordToLeaderboard(game, scene, result);
     showResult(resultTitle, resultText, overlay, result.title, result.text);
     renderReplayView(game);
   }
@@ -233,10 +260,45 @@ function handleToolSelect(tool) {
   renderToolButtons(currentTool);
 }
 
+function recordToLeaderboard(game, scene, result) {
+  const facilityCount = game.cells.filter(c => c.type !== 'empty').length;
+  const pollution = game.cells.filter(c => c.polluted).length;
+  const duration = game.startTime ? Date.now() - game.startTime : null;
+
+  addEntry({
+    sceneId: scene.id,
+    sceneName: scene.name,
+    seed: game.seed,
+    seedStr: game.seedStr,
+    gameMode: game.gameMode,
+    score: result.score,
+    win: result.win,
+    budget: game.budget,
+    pollution,
+    facilityCount,
+    duration
+  });
+
+  updateLeaderboardButton(leaderboardBtn);
+}
+
+function handleSeedClick() {
+  if (!game || !game.seedStr) return;
+  const seedStr = game.seedStr;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(seedStr).catch(() => {});
+  }
+  seedTextEl.textContent = '已复制!';
+  setTimeout(() => {
+    seedTextEl.textContent = game.seedStr;
+  }, 1200);
+}
+
 function openSceneSelect() {
   selectedSceneId = currentSceneId;
   parsedChallenge = null;
   challengeInput.value = '';
+  if (seedInputEl) seedInputEl.value = '';
   challengePreviewEl.textContent = '解析成功后，此处将显示挑战配置预览。';
   challengePreviewEl.classList.add('empty');
   clearChallengeError();
@@ -545,6 +607,8 @@ function bindGlobalEvents() {
   document.querySelector('#editorSaveBtn').onclick = saveAndStartSandbox;
   codexBtn.onclick = () => showCodex(codexOverlay);
   achievementsBtn.onclick = () => showAchievements(achievementsOverlay);
+  leaderboardBtn.onclick = () => showLeaderboard(leaderboardOverlay);
+  seedTextEl.onclick = handleSeedClick;
 
   challengeLoadBtn.onclick = handleLoadChallenge;
   challengeStartBtn.onclick = handleStartChallenge;
@@ -573,6 +637,9 @@ function init() {
     updateAchievementsButton(achievementsBtn);
   });
   updateAchievementsButton(achievementsBtn);
+
+  loadLeaderboardState();
+  updateLeaderboardButton(leaderboardBtn);
 
   setHighlightCallback(handleHighlight);
   setApplySuggestionCallback(handleApplySuggestion);
