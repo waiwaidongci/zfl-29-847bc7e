@@ -79,6 +79,26 @@ import {
   bindResultTabSwitcher,
   renderReplayView
 } from './ui/modals.js';
+import { getCampaign, getChapterByOrder } from './data/campaigns.js';
+import {
+  createCampaignProgress,
+  loadCampaignProgress,
+  saveCampaignProgress,
+  deleteCampaignProgress,
+  getCampaignSceneConfig,
+  completeChapter,
+  replayChapter,
+  isCampaignComplete
+} from './game/campaign.js';
+import {
+  renderCampaignList,
+  renderCampaignDetail,
+  renderStoryDialog,
+  showCampaignOverlay,
+  hideCampaignOverlay,
+  showCampaignResult,
+  showCampaignSummary
+} from './ui/campaign.js';
 
 const gridEl = document.querySelector('#grid');
 const logEl = document.querySelector('#log');
@@ -110,6 +130,11 @@ const leaderboardOverlay = document.querySelector('#leaderboardOverlay');
 const leaderboardBtn = document.querySelector('#leaderboardBtn');
 const seedInputEl = document.querySelector('#seedInput');
 const seedTextEl = document.querySelector('#seedText');
+const campaignBtn = document.querySelector('#campaignBtn');
+const campaignOverlay = document.querySelector('#campaignOverlay');
+const campaignContentEl = document.querySelector('#campaignContent');
+const storyOverlay = document.querySelector('#storyOverlay');
+const campaignResultOverlay = document.querySelector('#campaignResultOverlay');
 
 let highlightedCells = [];
 let currentAdvice = null;
@@ -121,9 +146,18 @@ let game = null;
 let editorState = createEditorState();
 let parsedChallenge = null;
 let lastEventCount = 0;
+let campaignProgress = null;
+let campaignCurrentSceneConfig = null;
+
+function getActiveScene() {
+  if (game && game.gameMode === 'campaign' && campaignCurrentSceneConfig) {
+    return campaignCurrentSceneConfig;
+  }
+  return getScene(currentSceneId);
+}
 
 function fullRender() {
-  const scene = getScene(currentSceneId);
+  const scene = getActiveScene();
   if (highlightedCells.length > 0) {
     renderGridWithHighlights(gridEl, game.cells, highlightedCells, i => handlePlace(i));
   } else {
@@ -141,7 +175,7 @@ function updateAdvisor() {
     renderAdvisor(advisorEl, null, game);
     return;
   }
-  const scene = getScene(currentSceneId);
+  const scene = getActiveScene();
   currentAdvice = generateAdvice(game, scene);
   renderAdvisor(advisorEl, currentAdvice, game);
 }
@@ -226,7 +260,7 @@ function handleNextTurn() {
   if (game.ended) return;
   clearHighlights();
   highlightedCells = [];
-  const scene = getScene(currentSceneId);
+  const scene = getActiveScene();
   const result = advanceTurn(game, scene);
 
   const newEvents = game.replay.events.slice(lastEventCount);
@@ -248,8 +282,13 @@ function handleNextTurn() {
       updateAchievementsButton(achievementsBtn);
     }
     recordToLeaderboard(game, scene, result);
-    showResult(resultTitle, resultText, overlay, result.title, result.text);
-    renderReplayView(game);
+
+    if (game.gameMode === 'campaign') {
+      handleCampaignChapterEnd(result);
+    } else {
+      showResult(resultTitle, resultText, overlay, result.title, result.text);
+      renderReplayView(game);
+    }
   }
 
   fullRender();
@@ -591,6 +630,134 @@ function saveAndStartSandbox() {
   hideOverlay(editorOverlay);
 }
 
+function startCampaignChapter(campaignId, chapterOrder) {
+  if (!campaignProgress || campaignProgress.campaignId !== campaignId) {
+    campaignProgress = createCampaignProgress(campaignId);
+    saveCampaignProgress(campaignProgress);
+  }
+
+  campaignProgress.currentChapterOrder = chapterOrder;
+  const sceneConfig = getCampaignSceneConfig(campaignProgress);
+  if (!sceneConfig) return;
+
+  campaignCurrentSceneConfig = sceneConfig;
+
+  const chapter = getChapterByOrder(campaignId, chapterOrder);
+  if (!chapter) return;
+
+  hideCampaignOverlay(campaignOverlay);
+
+  renderStoryDialog(storyOverlay, chapter.name, chapter.storyIntro, '开始修复', () => {
+    game = createGameState(sceneConfig, {
+      campaignMode: true,
+      campaignProgress: campaignProgress,
+      campaignId: campaignId,
+      campaignChapterOrder: chapterOrder
+    });
+    lastEventCount = game.replay.events.length;
+    currentSceneId = sceneConfig.id;
+    updateSceneInfo(sceneInfoEl, sceneConfig.name);
+    hideOverlay(overlay);
+    clearHighlights();
+    highlightedCells = [];
+    fullRender();
+  });
+}
+
+function handleCampaignChapterEnd(result) {
+  const chapterOrder = game.campaignChapterOrder;
+  const campaignId = game.campaignId;
+  const campaign = getCampaign(campaignId);
+  const chapter = getChapterByOrder(campaignId, chapterOrder);
+
+  campaignProgress = completeChapter(campaignProgress, chapterOrder, {
+    win: result.win,
+    score: result.score,
+    pollution: result.pollution,
+    budget: game.budget
+  });
+  saveCampaignProgress(campaignProgress);
+
+  const isLastChapter = chapter.order >= campaign.chapters.length;
+
+  showCampaignResult(campaignResultOverlay, result, chapter.name, isLastChapter, {
+    next: () => {
+      campaignResultOverlay.classList.add('hidden');
+
+      if (isLastChapter && result.win) {
+        showCampaignSummary(campaignResultOverlay, campaignId, campaignProgress, {
+          restart: (cId) => {
+            campaignProgress = createCampaignProgress(cId);
+            saveCampaignProgress(campaignProgress);
+            openCampaignSelect();
+          },
+          exit: () => {
+            campaignProgress = null;
+            campaignCurrentSceneConfig = null;
+            game = null;
+            openSceneSelect();
+          }
+        });
+        return;
+      }
+
+      const nextChapter = getChapterByOrder(campaignId, chapterOrder + 1);
+      if (nextChapter) {
+        renderStoryDialog(storyOverlay, nextChapter.name, nextChapter.storyIntro, '开始修复', () => {
+          startCampaignChapter(campaignId, chapterOrder + 1);
+        });
+      }
+    },
+    retry: () => {
+      campaignResultOverlay.classList.add('hidden');
+      campaignProgress = replayChapter(campaignProgress, chapterOrder);
+      saveCampaignProgress(campaignProgress);
+      startCampaignChapter(campaignId, chapterOrder);
+    },
+    exit: () => {
+      campaignResultOverlay.classList.add('hidden');
+      campaignProgress = null;
+      campaignCurrentSceneConfig = null;
+      game = null;
+      openSceneSelect();
+    }
+  });
+}
+
+function openCampaignSelect() {
+  renderCampaignList(campaignContentEl, campaignId => {
+    const saved = loadCampaignProgress(campaignId);
+    if (saved) {
+      renderCampaignDetail(campaignContentEl, campaignId, {
+        back: () => openCampaignSelect(),
+        startChapter: (chapterOrder) => {
+          campaignProgress = saved;
+          startCampaignChapter(campaignId, chapterOrder);
+        },
+        replayChapter: (chapterOrder) => {
+          campaignProgress = replayChapter(saved, chapterOrder);
+          saveCampaignProgress(campaignProgress);
+          startCampaignChapter(campaignId, chapterOrder);
+        },
+        newCampaign: (cId) => {
+          campaignProgress = createCampaignProgress(cId);
+          saveCampaignProgress(campaignProgress);
+          startCampaignChapter(cId, 1);
+        },
+        continueCampaign: (cId) => {
+          campaignProgress = saved;
+          startCampaignChapter(cId, saved.currentChapterOrder);
+        }
+      });
+    } else {
+      campaignProgress = createCampaignProgress(campaignId);
+      saveCampaignProgress(campaignProgress);
+      startCampaignChapter(campaignId, 1);
+    }
+  });
+  showCampaignOverlay(campaignOverlay);
+}
+
 function bindGlobalEvents() {
   document.querySelectorAll('[data-tool]').forEach(btn => {
     btn.onclick = () => handleToolSelect(btn.dataset.tool);
@@ -599,8 +766,20 @@ function bindGlobalEvents() {
   bindResultTabSwitcher();
 
   document.querySelector('#nextBtn').onclick = handleNextTurn;
-  document.querySelector('#restartBtn').onclick = () => startNewGame(currentSceneId);
-  document.querySelector('#againBtn').onclick = () => startNewGame(currentSceneId);
+  document.querySelector('#restartBtn').onclick = () => {
+    if (game && game.gameMode === 'campaign') {
+      startCampaignChapter(game.campaignId, game.campaignChapterOrder);
+    } else {
+      startNewGame(currentSceneId);
+    }
+  };
+  document.querySelector('#againBtn').onclick = () => {
+    if (game && game.gameMode === 'campaign') {
+      startCampaignChapter(game.campaignId, game.campaignChapterOrder);
+    } else {
+      startNewGame(currentSceneId);
+    }
+  };
   document.querySelector('#switchSceneBtn').onclick = openSceneSelect;
   document.querySelector('#startSceneBtn').onclick = handleStartScene;
   document.querySelector('#editorCancelBtn').onclick = closeSandboxEditor;
@@ -608,6 +787,8 @@ function bindGlobalEvents() {
   codexBtn.onclick = () => showCodex(codexOverlay);
   achievementsBtn.onclick = () => showAchievements(achievementsOverlay);
   leaderboardBtn.onclick = () => showLeaderboard(leaderboardOverlay);
+  campaignBtn.onclick = openCampaignSelect;
+  campaignOverlay.querySelector('.campaign-close-btn').onclick = () => hideCampaignOverlay(campaignOverlay);
   seedTextEl.onclick = handleSeedClick;
 
   challengeLoadBtn.onclick = handleLoadChallenge;

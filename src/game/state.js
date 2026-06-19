@@ -69,8 +69,11 @@ export function createGameState(scene, options) {
   if (scene.id === 'sandbox') {
     gameMode = scene.fromChallenge ? 'challenge' : 'sandbox';
   }
+  if (opts.campaignMode) {
+    gameMode = 'campaign';
+  }
 
-  return {
+  const state = {
     turn: 1,
     budget: scene.budget,
     water: scene.water,
@@ -83,6 +86,9 @@ export function createGameState(scene, options) {
     seedStr: seedToString(seed),
     rng,
     gameMode,
+    campaignProgress: opts.campaignProgress || null,
+    campaignId: opts.campaignId || null,
+    campaignChapterOrder: opts.campaignChapterOrder || null,
     startTime: Date.now(),
     replay: {
       sceneId: scene.id,
@@ -110,6 +116,8 @@ export function createGameState(scene, options) {
       }]
     }
   };
+
+  return state;
 }
 
 function getFacilityCountsFromCells(cells) {
