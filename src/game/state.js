@@ -27,6 +27,7 @@ import {
   GRID_COLS,
   GRID_ROWS
 } from './constants.js';
+import { unlockByEvent } from './codex.js';
 
 function createEmptyCells() {
   return Array.from({ length: GRID_SIZE }, () => ({
@@ -109,6 +110,7 @@ export function placeFacility(game, index, tool) {
 
   const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩' };
   game.log.unshift(`放置${nameMap[tool]}。`);
+  unlockByEvent('place_' + tool);
 
   return true;
 }
@@ -142,24 +144,44 @@ export function spreadPollution(game, piles) {
     game.cells[i].polluted = true;
   });
 
+  if (newPolluted.size > 0) {
+    unlockByEvent('pollution_spread');
+  }
+
+  let oysterCleaned = false;
   game.cells.forEach(cell => {
     if (cell.type === 'oyster' && cell.polluted && Math.random() < OYSTER_CLEAN_CHANCE) {
       cell.polluted = false;
+      oysterCleaned = true;
     }
   });
+
+  if (oysterCleaned) {
+    unlockByEvent('oyster_clean');
+  }
 }
 
 export function triggerStorm(game) {
   const placed = game.cells.filter(c => c.type !== CELL_TYPES.EMPTY);
+  let damaged = false;
   if (placed.length && Math.random() < STORM_DAMAGE_CHANCE) {
     placed[Math.floor(Math.random() * placed.length)].type = CELL_TYPES.EMPTY;
+    damaged = true;
   }
   game.water -= STORM_WATER_PENALTY;
   game.log.unshift('风暴潮冲刷了修复区，部分设施受损。');
+  unlockByEvent('storm');
+  if (!damaged) {
+    unlockByEvent('storm_survive');
+  }
 }
 
 export function applyEcosystemEffects(game) {
   const { oysters, grass, pollution } = getFacilityCounts(game);
+
+  if (pollution > 0) {
+    unlockByEvent('pollution_damage');
+  }
 
   game.water += oysters * OYSTER_WATER_BONUS - pollution * POLLUTION_WATER_PENALTY;
   game.larvae += oysters * OYSTER_LARVAE_BONUS + grass * GRASS_LARVAE_BONUS - pollution * POLLUTION_LARVAE_PENALTY;

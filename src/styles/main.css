@@ -53,4 +53,26 @@ button.secondary { background: #617b78; }
 .editor-grid .cell.preview-pol::after { content: ""; position: absolute; inset: 0; background: rgba(196, 30, 30, 0.25); }
 .editor-grid .cell.preview-obs::before { content: "?"; position: absolute; z-index: 2; color: rgba(0,0,0,0.3); font-size: 16px; }
 .sandbox-tag { background: #c08d2d !important; color: #fff !important; }
-@media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } .scene-list { grid-template-columns: 1fr; } .header-right { margin-top: 10px; } .editor-container { grid-template-columns: 1fr; } }
+.codex-badge { display: inline-block; font-size: 11px; background: rgba(255,255,255,0.25); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+.codex-modal { width: min(780px, calc(100% - 28px)); max-height: 85vh; display: flex; flex-direction: column; }
+.codex-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.codex-header h2 { margin: 0; flex: 1; }
+.codex-progress { font-size: 13px; color: #4a5f5d; background: #f3f8f7; padding: 3px 10px; border-radius: 10px; }
+.codex-close { padding: 4px 10px; font-size: 16px; }
+.codex-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.codex-tab { padding: 7px 14px; border-radius: 6px; background: #e8efed; color: #4a5f5d; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
+.codex-tab.active { background: #237070; color: #fff; border-color: #1a5a5a; }
+.codex-tab:hover:not(.active) { background: #d4e0dd; }
+.codex-content { overflow-y: auto; display: grid; gap: 12px; }
+.codex-entry { display: flex; gap: 14px; padding: 14px; background: #f3f8f7; border: 1px solid #c9dbd8; border-radius: 8px; position: relative; transition: all .15s; }
+.codex-entry.locked { opacity: 0.55; background: #f0f0f0; border-color: #ddd; }
+.codex-entry-diagram { width: 90px; min-width: 90px; display: flex; align-items: center; justify-content: center; }
+.codex-entry-diagram svg { width: 80px; height: 60px; }
+.codex-entry-info { flex: 1; }
+.codex-entry-info h3 { margin: 0 0 6px; font-size: 16px; color: #1c2b2c; }
+.codex-entry.locked .codex-entry-info h3 { color: #999; }
+.codex-entry-info p { margin: 0; font-size: 13px; line-height: 1.6; color: #4a5f5d; }
+.codex-lock-badge { position: absolute; top: 12px; right: 12px; font-size: 16px; }
+@keyframes codex-unlock-flash { 0% { box-shadow: 0 0 0 0 rgba(35,112,112,0.5); } 100% { box-shadow: 0 0 0 12px rgba(35,112,112,0); } }
+.codex-entry.just-unlocked { animation: codex-unlock-flash 0.6s ease-out; }
+@media (max-width: 1000px) { header { display: block; } .app { grid-template-columns: 1fr; } .scene-list { grid-template-columns: 1fr; } .header-right { margin-top: 10px; } .editor-container { grid-template-columns: 1fr; } .codex-entry { flex-direction: column; } .codex-entry-diagram { width: 100%; min-width: unset; } }

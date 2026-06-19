@@ -3,6 +3,8 @@ import { DEFAULT_SCENE_ID, SANDBOX_EDITOR_ID, SANDBOX_SCENE_ID } from './game/co
 import { getScene } from './data/scenes.js';
 import { createGameState, placeFacility } from './game/state.js';
 import { advanceTurn } from './game/tide.js';
+import { loadCodexState, onUnlock } from './game/codex.js';
+import { showCodex, updateCodexButton } from './ui/codex.js';
 import {
   renderGrid,
   renderStats,
@@ -46,6 +48,8 @@ const editorOverlay = document.querySelector('#editorOverlay');
 const editorGridEl = document.querySelector('#editorGrid');
 const editorToolsEl = document.querySelector('#editorTools');
 const editorErrorEl = document.querySelector('#editorError');
+const codexOverlay = document.querySelector('#codexOverlay');
+const codexBtn = document.querySelector('#codexBtn');
 
 let currentSceneId = DEFAULT_SCENE_ID;
 let selectedSceneId = DEFAULT_SCENE_ID;
@@ -218,9 +222,13 @@ function bindGlobalEvents() {
   document.querySelector('#startSceneBtn').onclick = handleStartScene;
   document.querySelector('#editorCancelBtn').onclick = closeSandboxEditor;
   document.querySelector('#editorSaveBtn').onclick = saveAndStartSandbox;
+  codexBtn.onclick = () => showCodex(codexOverlay);
 }
 
 function init() {
+  loadCodexState();
+  onUnlock(() => updateCodexButton(codexBtn));
+  updateCodexButton(codexBtn);
   bindGlobalEvents();
   const defaultScene = getScene(DEFAULT_SCENE_ID);
   updateSceneInfo(sceneInfoEl, defaultScene.name);

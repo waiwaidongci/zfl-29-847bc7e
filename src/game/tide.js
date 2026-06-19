@@ -6,6 +6,7 @@ import {
   clampAllStats,
   checkWinCondition
 } from './state.js';
+import { unlockByEvent } from './codex.js';
 
 export function advanceTurn(game, scene) {
   if (game.ended) return { ended: false };
@@ -36,6 +37,12 @@ export function advanceTurn(game, scene) {
 export function finishGame(game, scene) {
   game.ended = true;
   const { win, score, pollution } = checkWinCondition(game, scene);
+
+  if (pollution === 0) {
+    unlockByEvent('pollution_cleared');
+  }
+
+  unlockByEvent(win ? 'repair_win' : 'repair_lose');
 
   const resultText =
     scene[win ? 'winText' : 'loseText'] +
