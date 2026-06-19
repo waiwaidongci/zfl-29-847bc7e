@@ -63,13 +63,22 @@ export function addEntry(entry) {
   saveLeaderboardState();
 }
 
-export function getEntries(category) {
-  if (category === 'all') {
-    return [...entries].sort((a, b) => b.score - a.score);
+export function getEntries(filters) {
+  let result = [...entries];
+
+  if (filters) {
+    if (filters.gameMode && filters.gameMode !== 'all') {
+      result = result.filter(e => e.gameMode === filters.gameMode);
+    }
+    if (filters.sceneId && filters.sceneId !== 'all') {
+      result = result.filter(e => e.sceneId === filters.sceneId);
+    }
+    if (filters.win != null && filters.win !== 'all') {
+      result = result.filter(e => e.win === filters.win);
+    }
   }
-  return entries
-    .filter(e => e.gameMode === category)
-    .sort((a, b) => b.score - a.score);
+
+  return result.sort((a, b) => b.score - a.score);
 }
 
 export function getBestEntry(sceneId, seed) {
@@ -78,8 +87,43 @@ export function getBestEntry(sceneId, seed) {
     .sort((a, b) => b.score - a.score)[0] || null;
 }
 
-export function getTopEntries(category, limit) {
-  return getEntries(category).slice(0, limit || 10);
+export function getBestComparison(sceneId, seed, currentEntry) {
+  const best = getBestEntry(sceneId, seed);
+  if (!best) {
+    return { isFirst: true, best: null, delta: null };
+  }
+
+  const isBetter = isBetterEntry(currentEntry, best);
+  const delta = {
+    score: currentEntry.score - best.score,
+    pollution: currentEntry.pollution - best.pollution,
+    budget: currentEntry.budget - best.budget,
+    facilityCount: currentEntry.facilityCount - best.facilityCount,
+    duration: currentEntry.duration != null && best.duration != null
+      ? currentEntry.duration - best.duration
+      : null
+  };
+
+  return {
+    isFirst: false,
+    isBetter,
+    best,
+    delta
+  };
+}
+
+export function getTopEntries(filters, limit) {
+  return getEntries(filters).slice(0, limit || 10);
+}
+
+export function getDistinctSceneIds() {
+  const map = new Map();
+  for (const e of entries) {
+    if (!map.has(e.sceneId)) {
+      map.set(e.sceneId, { id: e.sceneId, name: e.sceneName });
+    }
+  }
+  return Array.from(map.values());
 }
 
 export function resetLeaderboard() {
@@ -88,7 +132,7 @@ export function resetLeaderboard() {
 }
 
 export function getCategoryStats() {
-  const stats = { standard: 0, sandbox: 0, challenge: 0, all: entries.length };
+  const stats = { standard: 0, sandbox: 0, challenge: 0, campaign: 0, all: entries.length };
   for (const e of entries) {
     if (stats[e.gameMode] !== undefined) {
       stats[e.gameMode]++;

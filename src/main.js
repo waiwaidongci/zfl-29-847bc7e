@@ -75,7 +75,8 @@ import { seedFromString } from './game/seeded-random.js';
 import {
   loadLeaderboardState,
   addEntry,
-  getCategoryStats
+  getCategoryStats,
+  getBestComparison
 } from './game/leaderboard.js';
 import {
   showLeaderboard,
@@ -309,12 +310,12 @@ function handleNextTurn() {
     if (newlyUnlocked.length > 0) {
       updateAchievementsButton(achievementsBtn);
     }
-    recordToLeaderboard(game, scene, result);
+    const lbResult = recordToLeaderboard(game, scene, result);
 
     if (game.gameMode === 'campaign') {
-      handleCampaignChapterEnd(result);
+      handleCampaignChapterEnd(result, lbResult);
     } else {
-      showResult(resultTitle, resultText, overlay, result.title, result.text);
+      showResult(resultTitle, resultText, overlay, result.title, result.text, lbResult);
       renderReplayView(game);
     }
   }
@@ -332,7 +333,7 @@ function recordToLeaderboard(game, scene, result) {
   const pollution = game.cells.filter(c => c.polluted).length;
   const duration = game.startTime ? Date.now() - game.startTime : null;
 
-  addEntry({
+  const currentEntry = {
     sceneId: scene.id,
     sceneName: scene.name,
     seed: game.seed,
@@ -344,9 +345,15 @@ function recordToLeaderboard(game, scene, result) {
     pollution,
     facilityCount,
     duration
-  });
+  };
+
+  const comparison = getBestComparison(scene.id, game.seed, currentEntry);
+
+  addEntry(currentEntry);
 
   updateLeaderboardButton(leaderboardBtn);
+
+  return { comparison, currentEntry };
 }
 
 function handleSeedClick() {
@@ -922,7 +929,7 @@ function startCampaignChapter(campaignId, chapterOrder) {
   });
 }
 
-function handleCampaignChapterEnd(result) {
+function handleCampaignChapterEnd(result, lbResult) {
   const chapterOrder = game.campaignChapterOrder;
   const campaignId = game.campaignId;
   const campaign = getCampaign(campaignId);
@@ -995,7 +1002,7 @@ function handleCampaignChapterEnd(result) {
       game = null;
       openSceneSelect();
     }
-  }, game.replay);
+  }, game.replay, lbResult);
 }
 
 function openCampaignSelect() {

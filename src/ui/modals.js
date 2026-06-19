@@ -57,9 +57,125 @@ export function showSceneSelect(sceneOverlayEl, resultOverlayEl) {
   showOverlay(sceneOverlayEl);
 }
 
-export function showResult(resultTitleEl, resultTextEl, overlayEl, title, text) {
+function formatDuration(ms) {
+  if (ms == null || ms < 0) return '-';
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}秒`;
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}分${sec}秒`;
+}
+
+export function renderBestComparison(lbResult) {
+  if (!lbResult) return '';
+
+  const { comparison, currentEntry } = lbResult;
+  if (!comparison) return '';
+
+  if (comparison.isFirst) {
+    return `
+      <div class="best-comparison">
+        <div class="bc-header">
+          <span class="bc-icon">🌟</span>
+          <span class="bc-title">首次记录</span>
+        </div>
+        <div class="bc-desc">该场景与种子的首条成绩记录已保存</div>
+      </div>
+    `;
+  }
+
+  const { delta, isBetter, best } = comparison;
+
+  const deltaClass = (val, higherIsBetter) => {
+    if (val === 0) return 'bc-delta-zero';
+    if (higherIsBetter) return val > 0 ? 'bc-delta-pos' : 'bc-delta-neg';
+    return val < 0 ? 'bc-delta-pos' : 'bc-delta-neg';
+  };
+
+  const deltaText = (val, higherIsBetter) => {
+    if (val === 0) return '持平';
+    const sign = val > 0 ? '+' : '';
+    return `${sign}${val}`;
+  };
+
+  const durationDelta = delta.duration;
+  const durationDeltaText = durationDelta == null ? '-' : (() => {
+    if (durationDelta === 0) return '持平';
+    const sign = durationDelta > 0 ? '+' : '';
+    const totalSec = Math.round(durationDelta / 1000);
+    if (Math.abs(totalSec) < 60) return `${sign}${totalSec}秒`;
+    const min = Math.floor(totalSec / 60);
+    const sec = Math.abs(totalSec) % 60;
+    return `${sign}${min}分${sec}秒`;
+  })();
+  const durationDeltaClass = durationDelta == null
+    ? 'bc-delta-zero'
+    : deltaClass(-durationDelta, true);
+
+  const headerIcon = isBetter ? '🎉' : '📊';
+  const headerTitle = isBetter ? '新纪录！刷新了个人最佳' : '与个人最佳对比';
+
+  return `
+    <div class="best-comparison">
+      <div class="bc-header">
+        <span class="bc-icon">${headerIcon}</span>
+        <span class="bc-title">${headerTitle}</span>
+      </div>
+      <div class="bc-grid">
+        <div class="bc-item">
+          <div class="bc-label">评分</div>
+          <div class="bc-value">${currentEntry.score}</div>
+          <div class="bc-delta ${deltaClass(delta.score, true)}">${deltaText(delta.score, true)}</div>
+          <div class="bc-best">最佳: ${best.score}</div>
+        </div>
+        <div class="bc-item">
+          <div class="bc-label">污染格</div>
+          <div class="bc-value">${currentEntry.pollution}</div>
+          <div class="bc-delta ${deltaClass(delta.pollution, false)}">${deltaText(delta.pollution, false)}</div>
+          <div class="bc-best">最佳: ${best.pollution}</div>
+        </div>
+        <div class="bc-item">
+          <div class="bc-label">剩余预算</div>
+          <div class="bc-value">${currentEntry.budget}</div>
+          <div class="bc-delta ${deltaClass(delta.budget, true)}">${deltaText(delta.budget, true)}</div>
+          <div class="bc-best">最佳: ${best.budget}</div>
+        </div>
+        <div class="bc-item">
+          <div class="bc-label">设施数量</div>
+          <div class="bc-value">${currentEntry.facilityCount}</div>
+          <div class="bc-delta ${deltaClass(delta.facilityCount, true)}">${deltaText(delta.facilityCount, true)}</div>
+          <div class="bc-best">最佳: ${best.facilityCount}</div>
+        </div>
+        <div class="bc-item">
+          <div class="bc-label">用时</div>
+          <div class="bc-value">${formatDuration(currentEntry.duration)}</div>
+          <div class="bc-delta ${durationDeltaClass}">${durationDeltaText}</div>
+          <div class="bc-best">最佳: ${formatDuration(best.duration)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function showResult(resultTitleEl, resultTextEl, overlayEl, title, text, lbResult) {
   resultTitleEl.textContent = title;
   resultTextEl.textContent = text;
+
+  const tabContent = document.querySelector('#resultTabContent');
+  if (tabContent) {
+    const statsHtml = renderBestComparison(lbResult);
+    const resultStats = tabContent.querySelector('.result-stats-container');
+    if (resultStats) {
+      resultStats.remove();
+    }
+    if (statsHtml) {
+      const container = document.createElement('div');
+      container.className = 'result-stats-container';
+      container.innerHTML = statsHtml;
+      resultTextEl.after(container);
+    }
+  }
+
   switchResultTab('result');
   showOverlay(overlayEl);
 }

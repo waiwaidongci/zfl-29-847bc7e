@@ -286,9 +286,98 @@ button.secondary { background: #617b78; }
 .leaderboard-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid #c9dbd8; display: flex; justify-content: space-between; align-items: center; }
 .leaderboard-hint { font-size: 11px; color: #8a9a98; max-width: 360px; line-height: 1.5; }
 
+.leaderboard-filters {
+  margin-bottom: 14px;
+  padding: 12px;
+  background: #f9fcfb;
+  border: 1px solid #d9e7e5;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lb-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lb-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4a5f5d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lb-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lb-filter-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fff;
+  color: #4a5f5d;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #c9dbd8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lb-filter-btn:hover:not(.active) {
+  background: #eef6f4;
+  border-color: #a8c7c3;
+}
+
+.lb-filter-btn.active {
+  background: #237070;
+  color: #fff;
+  border-color: #1a5a5a;
+}
+
+.lb-filter-row {
+  display: flex;
+  gap: 12px;
+}
+
+.lb-filter-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lb-filter-select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fff;
+  color: #2c3e3c;
+  font-size: 13px;
+  border: 1px solid #c9dbd8;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.lb-filter-select:focus {
+  outline: none;
+  border-color: #237070;
+  box-shadow: 0 0 0 2px rgba(35, 112, 112, 0.15);
+}
+
+.lb-col.lb-mode {
+  text-align: center;
+  font-size: 14px;
+}
+
 @media (max-width: 1000px) {
-  .lb-row { grid-template-columns: 28px 1fr 60px 48px 48px 40px 40px 56px 32px; font-size: 12px; }
+  .lb-row { grid-template-columns: 28px 32px 1fr 60px 48px 48px 40px 40px 56px 32px; font-size: 12px; }
   .leaderboard-modal { width: calc(100% - 16px); }
+  .lb-filter-row { flex-direction: column; gap: 8px; }
 }
 
 .advisor-empty {
@@ -916,6 +1005,97 @@ button.secondary { background: #617b78; }
 .carryover-bonus { background: #e6f5ec; color: #1a5a3a; border: 1px solid #8ecfaa; }
 .carryover-penalty { background: #fdecea; color: #8b2f27; border: 1px solid #ecc4bf; }
 .carryover-neutral { background: #e8efed; color: #617b78; border: 1px solid #c9dbd8; }
+
+.best-comparison {
+  margin: 0 auto 14px;
+  padding: 12px 14px;
+  background: #f3f8f7;
+  border: 1px solid #c9dbd8;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.bc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #d9e7e5;
+}
+
+.bc-icon { font-size: 20px; }
+
+.bc-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #237070;
+}
+
+.bc-desc {
+  font-size: 13px;
+  color: #617b78;
+}
+
+.bc-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.bc-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  background: #fff;
+  border: 1px solid #d9e7e5;
+  border-radius: 6px;
+}
+
+.bc-label {
+  font-size: 11px;
+  color: #617b78;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.bc-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #237070;
+  margin-bottom: 4px;
+}
+
+.bc-delta {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-bottom: 2px;
+}
+
+.bc-delta-pos { background: #e6f5ec; color: #1a5a3a; }
+.bc-delta-neg { background: #fdecea; color: #8b2f27; }
+.bc-delta-zero { background: #e8efed; color: #617b78; }
+
+.bc-best {
+  font-size: 10px;
+  color: #8a9a98;
+}
+
+.result-stats-container {
+  margin-top: 14px;
+}
+
+.result-stats-container .best-comparison {
+  margin: 0;
+}
+
+@media (max-width: 1000px) {
+  .bc-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
 .campaign-result-actions { display: flex; gap: 8px; justify-content: center; }
 .campaign-next-btn { padding: 8px 20px; font-size: 14px; background: #c08d2d; }
 .campaign-retry-btn { padding: 8px 20px; font-size: 14px; }

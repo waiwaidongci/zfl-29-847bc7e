@@ -9,6 +9,7 @@ import {
   isCampaignComplete
 } from '../game/campaign.js';
 import { ICONS } from '../game/constants.js';
+import { renderBestComparison } from './modals.js';
 
 let campaignReplayState = {
   currentIndex: 0,
@@ -169,7 +170,7 @@ export function hideCampaignOverlay(overlayEl) {
   overlayEl.classList.add('hidden');
 }
 
-export function showCampaignResult(overlayEl, result, chapterName, isLastChapter, carryOver, actions, replayData) {
+export function showCampaignResult(overlayEl, result, chapterName, isLastChapter, carryOver, actions, replayData, lbResult) {
   const resultClass = result.win ? 'campaign-result-win' : 'campaign-result-lose';
   const resultTitle = result.win ? '章节通过！' : '章节未通过';
   const resultIcon = result.win ? '🎉' : '💪';
@@ -203,6 +204,8 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
 
   const budgetValue = result.budget != null ? result.budget : 0;
 
+  const bestComparisonHtml = renderBestComparison(lbResult);
+
   overlayEl.innerHTML = `
     <div class="modal campaign-result-modal ${resultClass}">
       <div class="result-tabs">
@@ -227,6 +230,7 @@ export function showCampaignResult(overlayEl, result, chapterName, isLastChapter
             <strong>${budgetValue}</strong>
           </div>
         </div>
+        ${bestComparisonHtml}
         ${carryOverHtml}
         <p class="campaign-result-text">${result.text}</p>
       </div>
