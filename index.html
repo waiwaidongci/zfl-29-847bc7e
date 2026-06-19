@@ -186,6 +186,7 @@
     const costs = { oyster: 12, grass: 10, pile: 8, erase: 0 };
     const icons = { oyster: "礁", grass: "草", pile: "桩", empty: "" };
     const DEFAULT_SCENE_ID = "beginner";
+    const SANDBOX_EDITOR_ID = "sandbox-editor";
 
     const scenes = {
       beginner: {
@@ -279,7 +280,7 @@
       `).join('');
 
       const sandboxCard = `
-        <div class="scene-card ${selectedSceneId === 'sandbox' ? 'selected' : ''}" data-id="sandbox">
+        <div class="scene-card ${selectedSceneId === SANDBOX_EDITOR_ID ? 'selected' : ''}" data-id="${SANDBOX_EDITOR_ID}">
           <h3>沙盒编辑器</h3>
           <div class="desc">自由配置污染格、初始设施和游戏参数，打造你的专属修复挑战。</div>
           <div class="tags">
@@ -310,7 +311,7 @@
     }
 
     function startGameWithScene(sceneId) {
-      if (sceneId === "sandbox") {
+      if (sceneId === SANDBOX_EDITOR_ID) {
         openSandboxEditor();
         return;
       }
