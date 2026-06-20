@@ -18,7 +18,8 @@ export function createEditorState() {
       goalPollutionMax: null,
       goalMinStats: null,
       seed: null
-    }
+    },
+    rules: null
   };
 }
 
@@ -39,6 +40,7 @@ export function resetEditorState(editorState) {
     goalMinStats: null,
     seed: null
   };
+  editorState.rules = null;
 }
 
 export function renderEditorGrid(editorGridEl, cells, onClick, onHover) {
@@ -222,7 +224,8 @@ export function buildSandboxScene(editorState) {
     tags: ['自定义', '沙盒'],
     winText: '自定义挑战完成！你成功修复了这片潮间带。',
     loseText: '自定义挑战失败，继续调整策略尝试吧！',
-    initialCells: editorState.cells.map(c => ({ type: c.type, polluted: c.polluted }))
+    initialCells: editorState.cells.map(c => ({ type: c.type, polluted: c.polluted })),
+    rules: editorState.rules || null
   };
 
   addScene(SANDBOX_SCENE_ID, sandboxScene);

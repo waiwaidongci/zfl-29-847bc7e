@@ -1,4 +1,4 @@
-import { ICONS, COSTS, GRID_COLS } from '../game/constants.js';
+import { ICONS, GRID_COLS } from '../game/constants.js';
 
 let currentHighlightedCells = new Set();
 let activeSuggestionId = null;

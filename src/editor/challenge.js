@@ -109,6 +109,9 @@ export function generateChallengeCode(editorState) {
   if (params.seed != null) {
     payload.r = params.seed;
   }
+  if (editorState.rules != null) {
+    payload.ru = editorState.rules;
+  }
   const json = JSON.stringify(payload);
   const encoded = base64UrlEncode(json);
   return CODE_PREFIX_V2 + encoded;
@@ -208,6 +211,7 @@ function parseV2Payload(payload) {
   const goalPollutionMax = validateOptionalNumber(payload.gp, '污染上限', 0, GRID_SIZE);
   const goalMinStats = validateOptionalNumber(payload.gm, '最低指标', 0, 100);
   const seed = validateOptionalNumber(payload.r, '随机种子', 0, 2147483647);
+  const rules = payload.ru != null && typeof payload.ru === 'object' ? payload.ru : null;
 
   if (typeof payload.c !== 'string') {
     throw new Error('单元格编码格式错误：缺少单元格数据。');
@@ -230,7 +234,8 @@ function parseV2Payload(payload) {
       goalMinStats,
       seed
     },
-    cells
+    cells,
+    rules
   };
 }
 
@@ -347,7 +352,8 @@ export function buildChallengeScene(decoded) {
     winText: '挑战成功！你完成了这段挑战码对应的修复任务。',
     loseText: '挑战失败，再接再厉，调整策略后重试吧！',
     initialCells: cells.map(c => ({ type: c.type, polluted: c.polluted })),
-    fromChallenge: true
+    fromChallenge: true,
+    rules: decoded.rules || null
   };
 
   if (params.seed != null) {
@@ -374,5 +380,6 @@ export function applyDecodedToEditor(editorState, decoded) {
     goalMinStats: decoded.params.goalMinStats,
     seed: decoded.params.seed
   };
+  editorState.rules = decoded.rules || null;
   editorState.editTool = 'pollute';
 }

@@ -7,14 +7,17 @@ import {
   checkWinCondition,
   recordReplaySnapshot,
   recordReplayEvent,
-  calculateScore
+  calculateScore,
+  getGameRules
 } from './state.js';
+import { getFacilityName } from './rules-engine.js';
 import { unlockByEvent } from './codex.js';
 
 export function advanceTurn(game, scene) {
   if (game.ended) return { ended: false };
 
   const { oysters, grass, piles, buffers, pollution } = getFacilityCounts(game);
+  const rules = getGameRules(game);
 
   applyEcosystemEffects(game);
   spreadPollution(game, piles);
@@ -35,8 +38,12 @@ export function advanceTurn(game, scene) {
     pollution: game.cells.filter(c => c.polluted).length
   });
 
+  const oysterName = getFacilityName(rules, 'oyster');
+  const grassName = getFacilityName(rules, 'grass');
+  const pileName = getFacilityName(rules, 'pile');
+  const bufferName = getFacilityName(rules, 'buffer');
   game.log.unshift(
-    `第${game.turn}潮结束：牡蛎礁${oysters}处，海草床${grass}处，围护桩${piles}处，潮汐缓冲带${buffers}处。`
+    `第${game.turn}潮结束：${oysterName}${oysters}处，${grassName}${grass}处，${pileName}${piles}处，${bufferName}${buffers}处。`
   );
 
   if (game.turn >= scene.turns) {

@@ -1,37 +1,29 @@
 import {
   GRID_SIZE,
   CELL_TYPES,
-  COSTS,
   STATS_MIN,
   STATS_MAX,
-  TURN_BUDGET_BONUS,
-  OYSTER_WATER_BONUS,
-  OYSTER_LARVAE_BONUS,
-  OYSTER_BIO_BONUS,
-  GRASS_LARVAE_BONUS,
-  GRASS_BIO_BONUS,
-  POLLUTION_WATER_PENALTY,
-  POLLUTION_LARVAE_PENALTY,
-  POLLUTION_BIO_PENALTY,
-  POLLUTION_SPREAD_BASE,
-  POLLUTION_SPREAD_MIN,
-  POLLUTION_SPREAD_PILE_REDUCTION,
-  OYSTER_CLEAN_CHANCE,
-  STORM_DAMAGE_CHANCE,
-  STORM_WATER_PENALTY,
-  SCORE_WATER_WEIGHT,
-  SCORE_LARVAE_WEIGHT,
-  SCORE_BIO_WEIGHT,
-  SCORE_BUDGET_WEIGHT,
-  SCORE_POLLUTION_PENALTY,
   GRID_COLS,
   GRID_ROWS,
-  BUFFER_RANGE,
-  BUFFER_STORM_REDUCTION,
-  BUFFER_POLLUTION_REDUCTION
+  BUFFER_RANGE
 } from './constants.js';
 import { unlockByEvent } from './codex.js';
 import { createRNG, generateSeed, seedToString } from './seeded-random.js';
+import {
+  createRulesContext,
+  getFacilityCost,
+  getFacilityName,
+  clampStat,
+  applyEcosystemEffectsWithRules,
+  spreadPollutionWithRules,
+  triggerStormWithRules,
+  calculateScoreWithRules,
+  checkWinConditionWithRules,
+  clampAllStatsWithRules,
+  getCellsInRangeForRules,
+  getBufferProtectionCountWithRules,
+  getNeighborsForRules
+} from './rules-engine.js';
 
 function createEmptyCells() {
   return Array.from({ length: GRID_SIZE }, () => ({
@@ -86,6 +78,8 @@ export function createGameState(scene, options) {
     gameMode = 'campaign';
   }
 
+  const rules = createRulesContext(scene.rules || {});
+
   const state = {
     turn: 1,
     budget: scene.budget,
@@ -98,6 +92,7 @@ export function createGameState(scene, options) {
     seed,
     seedStr: seedToString(seed),
     rng,
+    rules,
     gameMode,
     dailyDate: scene.dateStr || null,
     campaignProgress: opts.campaignProgress || null,
@@ -115,6 +110,7 @@ export function createGameState(scene, options) {
       seedStr: seedToString(seed),
       gameMode,
       dailyDate: scene.dateStr || null,
+      rulesSnapshot: JSON.parse(JSON.stringify(rules)),
       snapshots: [{
         turn: 0,
         water: scene.water,
@@ -175,49 +171,15 @@ export function recordReplayEvent(game, type, message, data) {
 }
 
 export function getNeighbors(index) {
-  const x = index % GRID_COLS;
-  const y = Math.floor(index / GRID_COLS);
-  return [
-    [x - 1, y],
-    [x + 1, y],
-    [x, y - 1],
-    [x, y + 1]
-  ]
-    .filter(([a, b]) => a >= 0 && a < GRID_COLS && b >= 0 && b < GRID_ROWS)
-    .map(([a, b]) => b * GRID_COLS + a);
+  return getNeighborsForRules(index);
 }
 
 export function getCellsInRange(index, range) {
-  const x = index % GRID_COLS;
-  const y = Math.floor(index / GRID_COLS);
-  const cells = [];
-  for (let dx = -range; dx <= range; dx++) {
-    for (let dy = -range; dy <= range; dy++) {
-      if (dx === 0 && dy === 0) continue;
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < GRID_COLS && ny >= 0 && ny < GRID_ROWS) {
-        const distance = Math.abs(dx) + Math.abs(dy);
-        if (distance <= range) {
-          cells.push(ny * GRID_COLS + nx);
-        }
-      }
-    }
-  }
-  return cells;
+  return getCellsInRangeForRules(index, range);
 }
 
 function getBufferProtectionCount(cells, index) {
-  const protectedBy = new Set();
-  cells.forEach((cell, i) => {
-    if (cell.type === 'buffer') {
-      const protectedCells = getCellsInRange(i, BUFFER_RANGE);
-      if (protectedCells.includes(index)) {
-        protectedBy.add(i);
-      }
-    }
-  });
-  return protectedBy.size;
+  return getBufferProtectionCountWithRules(cells, index, createRulesContext());
 }
 
 export function clamp(v) {
@@ -228,6 +190,7 @@ export function placeFacility(game, index, tool) {
   if (game.ended) return false;
 
   const cell = game.cells[index];
+  const rules = game.rules || createRulesContext();
 
   if (tool === 'erase') {
     if (cell.type !== CELL_TYPES.EMPTY) {
@@ -240,16 +203,17 @@ export function placeFacility(game, index, tool) {
     return false;
   }
 
-  if (cell.type !== CELL_TYPES.EMPTY || game.budget < COSTS[tool]) {
+  const cost = getFacilityCost(rules, tool);
+  if (cell.type !== CELL_TYPES.EMPTY || game.budget < cost) {
     return false;
   }
 
   cell.type = tool;
-  game.budget -= COSTS[tool];
+  game.budget -= cost;
 
-  const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩', buffer: '潮汐缓冲带' };
-  game.log.unshift(`放置${nameMap[tool]}。`);
-  recordReplayEvent(game, 'place', `放置${nameMap[tool]}`, { type: tool, cost: COSTS[tool] });
+  const name = getFacilityName(rules, tool);
+  game.log.unshift(`放置${name}。`);
+  recordReplayEvent(game, 'place', `放置${name}`, { type: tool, cost });
   unlockByEvent('place_' + tool);
 
   return true;
@@ -265,76 +229,33 @@ export function getFacilityCounts(game) {
 }
 
 export function spreadPollution(game, piles) {
-  const newPolluted = new Set();
-
-  game.cells.forEach((cell, i) => {
-    if (!cell.polluted) return;
-    for (const n of getNeighbors(i)) {
-      if (game.cells[n].type === 'pile') continue;
-      const bufferCount = getBufferProtectionCount(game.cells, n);
-      const spreadChance = Math.max(
-        POLLUTION_SPREAD_MIN,
-        POLLUTION_SPREAD_BASE - piles * POLLUTION_SPREAD_PILE_REDUCTION - bufferCount * BUFFER_POLLUTION_REDUCTION
-      );
-      if (game.rng.random() < spreadChance) {
-        newPolluted.add(n);
-      }
-    }
-  });
-
-  newPolluted.forEach(i => {
-    game.cells[i].polluted = true;
-  });
+  const rules = game.rules || createRulesContext();
+  const result = spreadPollutionWithRules(game, rules);
+  const { newPolluted, cleanedCount } = result;
 
   if (newPolluted.size > 0) {
     recordReplayEvent(game, 'pollution_spread', `污染扩散，新增${newPolluted.size}个污染格`, { count: newPolluted.size });
     unlockByEvent('pollution_spread');
   }
 
-  let oysterCleaned = false;
-  let cleanedCount = 0;
-  game.cells.forEach(cell => {
-    if (cell.type === 'oyster' && cell.polluted && game.rng.random() < OYSTER_CLEAN_CHANCE) {
-      cell.polluted = false;
-      oysterCleaned = true;
-      cleanedCount++;
-    }
-  });
-
-  if (oysterCleaned) {
+  if (cleanedCount > 0) {
     recordReplayEvent(game, 'oyster_clean', `牡蛎礁净化了${cleanedCount}个污染格`, { count: cleanedCount });
     unlockByEvent('oyster_clean');
   }
 }
 
 export function triggerStorm(game) {
-  const placed = game.cells.filter(c => c.type !== CELL_TYPES.EMPTY);
-  let damaged = false;
-  let damagedType = null;
-  let bufferCount = 0;
-  let targetType = null;
-  if (placed.length) {
-    const idx = Math.floor(game.rng.random() * placed.length);
-    const targetCell = placed[idx];
-    targetType = targetCell.type;
-    const targetIndex = game.cells.indexOf(targetCell);
-    bufferCount = getBufferProtectionCount(game.cells, targetIndex);
-    const adjustedDamageChance = Math.max(0, STORM_DAMAGE_CHANCE * (1 - bufferCount * BUFFER_STORM_REDUCTION));
-    if (game.rng.random() < adjustedDamageChance) {
-      damagedType = targetCell.type;
-      targetCell.type = CELL_TYPES.EMPTY;
-      damaged = true;
-    }
-  }
-  game.water -= STORM_WATER_PENALTY;
-  game.stormHitCount = (game.stormHitCount || 0) + 1;
-  if (damaged) {
-    game.stormDamageCount = (game.stormDamageCount || 0) + 1;
-  }
-  const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩', buffer: '潮汐缓冲带' };
-  let stormMsg = damaged ? `风暴潮冲刷了修复区，一处${nameMap[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
-  if (bufferCount > 0 && !damaged && targetType) {
-    stormMsg = `风暴潮冲刷了修复区，${nameMap[targetType]}在缓冲带保护下免受损毁。`;
+  const rules = game.rules || createRulesContext();
+  const result = triggerStormWithRules(game, rules);
+  const { damaged, damagedType, bufferCount, targetType, bufferSaved } = result;
+
+  let damagedName = damagedType ? getFacilityName(rules, damagedType) : '设施';
+  let targetName = targetType ? getFacilityName(rules, targetType) : '';
+  let stormMsg = damaged
+    ? `风暴潮冲刷了修复区，一处${damagedName}受损。`
+    : '风暴潮冲刷了修复区，设施未受损。';
+  if (bufferSaved) {
+    stormMsg = `风暴潮冲刷了修复区，${targetName}在缓冲带保护下免受损毁。`;
   }
   game.log.unshift(stormMsg);
   recordReplayEvent(game, 'storm', stormMsg, {
@@ -342,7 +263,7 @@ export function triggerStorm(game) {
     damagedType,
     bufferCount,
     targetType,
-    bufferSaved: bufferCount > 0 && !damaged && targetType != null
+    bufferSaved
   });
   unlockByEvent('storm');
   if (!damaged) {
@@ -351,55 +272,25 @@ export function triggerStorm(game) {
 }
 
 export function applyEcosystemEffects(game) {
-  const { oysters, grass, pollution } = getFacilityCounts(game);
-
-  if (pollution > 0) {
-    unlockByEvent('pollution_damage');
-  }
-
-  game.water += oysters * OYSTER_WATER_BONUS - pollution * POLLUTION_WATER_PENALTY;
-  game.larvae += oysters * OYSTER_LARVAE_BONUS + grass * GRASS_LARVAE_BONUS - pollution * POLLUTION_LARVAE_PENALTY;
-  game.bio += grass * GRASS_BIO_BONUS + oysters * OYSTER_BIO_BONUS - pollution * POLLUTION_BIO_PENALTY;
-
-  game.budget += TURN_BUDGET_BONUS;
+  const rules = game.rules || createRulesContext();
+  applyEcosystemEffectsWithRules(game, rules);
 }
 
 export function clampAllStats(game) {
-  game.water = clamp(game.water);
-  game.larvae = clamp(game.larvae);
-  game.bio = clamp(game.bio);
+  const rules = game.rules || createRulesContext();
+  clampAllStatsWithRules(game, rules);
 }
 
 export function calculateScore(game) {
-  const pollution = game.cells.filter(c => c.polluted).length;
-  return Math.round(
-    game.water * SCORE_WATER_WEIGHT +
-    game.larvae * SCORE_LARVAE_WEIGHT +
-    game.bio * SCORE_BIO_WEIGHT +
-    game.budget * SCORE_BUDGET_WEIGHT -
-    pollution * SCORE_POLLUTION_PENALTY
-  );
+  const rules = game.rules || createRulesContext();
+  return calculateScoreWithRules(game, rules);
 }
 
 export function checkWinCondition(game, scene) {
-  const score = calculateScore(game);
-  const pollution = game.cells.filter(c => c.polluted).length;
+  const rules = game.rules || createRulesContext();
+  return checkWinConditionWithRules(game, scene, rules);
+}
 
-  let win = score >= scene.goalScore;
-
-  if (scene.goalPollutionMax != null && pollution > scene.goalPollutionMax) {
-    win = false;
-  }
-
-  if (scene.goalMinStats != null) {
-    if (
-      game.water < scene.goalMinStats ||
-      game.larvae < scene.goalMinStats ||
-      game.bio < scene.goalMinStats
-    ) {
-      win = false;
-    }
-  }
-
-  return { win, score, pollution };
+export function getGameRules(game) {
+  return game.rules || createRulesContext();
 }

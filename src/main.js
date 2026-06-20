@@ -70,7 +70,8 @@ import {
   validateDraft,
   formatDraftPreview
 } from './editor/drafts.js';
-import { COSTS } from './game/constants.js';
+import { COSTS as FALLBACK_COSTS } from './game/constants.js';
+import { getFacilityCost, createRulesContext } from './game/rules-engine.js';
 import { seedFromString } from './game/seeded-random.js';
 import {
   loadLeaderboardState,
@@ -260,7 +261,7 @@ function handleApplySuggestion(suggestion) {
   
   const targetIndices = suggestion.targetIndices || [suggestion.targetIndex];
   const tool = suggestion.type;
-  const toolCost = COSTS[tool];
+  const toolCost = game.rules ? getFacilityCost(game.rules, tool) : FALLBACK_COSTS[tool];
   
   let anyPlaced = false;
   for (const index of targetIndices) {
@@ -518,7 +519,11 @@ function formatChallengePreview(decoded) {
   const pollutionCount = decoded.cells.filter(c => c.polluted).length;
   const facilities = decoded.cells.filter(c => c.type !== 'empty');
   const facilityCount = facilities.length;
-  const facilityCost = facilities.reduce((sum, c) => sum + COSTS[c.type], 0);
+  const tempRules = decoded.rules ? createRulesContext(decoded.rules) : null;
+  const facilityCost = facilities.reduce((sum, c) => {
+    const cost = tempRules ? getFacilityCost(tempRules, c.type) : FALLBACK_COSTS[c.type];
+    return sum + cost;
+  }, 0);
   const oysterCount = facilities.filter(c => c.type === 'oyster').length;
   const grassCount = facilities.filter(c => c.type === 'grass').length;
   const pileCount = facilities.filter(c => c.type === 'pile').length;

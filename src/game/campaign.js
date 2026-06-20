@@ -373,6 +373,10 @@ export function getCampaignSceneConfig(progress) {
 
   let config = { ...chapter.sceneConfig };
 
+  if (chapter.rules) {
+    config.rules = JSON.parse(JSON.stringify(chapter.rules));
+  }
+
   const chapterData = progress.chapters[progress.currentChapterOrder];
   if (chapterData) {
     if (chapterData.appliedBranchRewards && chapterData.appliedBranchRewards.length > 0) {
