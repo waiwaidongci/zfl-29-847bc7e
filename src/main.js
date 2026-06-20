@@ -408,6 +408,17 @@ function showChallengeGenError(message) {
   challengeGenErrorEl.classList.add('show');
 }
 
+function escapeHtml(str) {
+  if (str == null) return '';
+  const s = String(str);
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function formatChallengePreview(decoded) {
   const pollutionCount = decoded.cells.filter(c => c.polluted).length;
   const facilities = decoded.cells.filter(c => c.type !== 'empty');
@@ -423,7 +434,7 @@ function formatChallengePreview(decoded) {
   const validateErrors = validateChallengeConfig(decoded);
   let statusHtml = '';
   if (validateErrors.length > 0) {
-    statusHtml = `<div style="color:#c0392b; margin-top:6px;">⚠️ 警告：${validateErrors.join('；')}</div>`;
+    statusHtml = `<div style="color:#c0392b; margin-top:6px;">⚠️ 警告：${escapeHtml(validateErrors.join('；'))}</div>`;
   } else {
     statusHtml = `<div style="color:#237070; margin-top:6px;">✅ 配置有效，可以开始挑战。</div>`;
   }
@@ -435,26 +446,26 @@ function formatChallengePreview(decoded) {
   if (bufferCount > 0) facilityParts.push(`缓冲带 ${bufferCount}`);
   const facilityDesc = facilityParts.length > 0 ? facilityParts.join(' · ') : '无';
 
-  const goalParts = [`生态评分 ≥ ${params.goalScore}`];
+  const goalParts = [`生态评分 ≥ ${escapeHtml(params.goalScore)}`];
   if (params.goalPollutionMax != null) {
-    goalParts.push(`污染 ≤ ${params.goalPollutionMax}格`);
+    goalParts.push(`污染 ≤ ${escapeHtml(params.goalPollutionMax)}格`);
   }
   if (params.goalMinStats != null) {
-    goalParts.push(`所有指标 ≥ ${params.goalMinStats}`);
+    goalParts.push(`所有指标 ≥ ${escapeHtml(params.goalMinStats)}`);
   }
   const goalDesc = goalParts.join(' 且 ');
 
   let nameLine = '';
   if (params.name) {
-    nameLine = `<div><strong>场景名称：</strong>${params.name}</div>`;
+    nameLine = `<div><strong>场景名称：</strong>${escapeHtml(params.name)}</div>`;
   }
   let descLine = '';
   if (params.desc) {
-    descLine = `<div><strong>场景描述：</strong>${params.desc}</div>`;
+    descLine = `<div><strong>场景描述：</strong>${escapeHtml(params.desc)}</div>`;
   }
   let seedLine = '';
   if (params.seed != null) {
-    seedLine = `<div><strong>随机种子：</strong>${params.seed}</div>`;
+    seedLine = `<div><strong>随机种子：</strong>${escapeHtml(params.seed)}</div>`;
   }
   let versionLine = '';
   if (decoded.version) {
@@ -466,15 +477,15 @@ function formatChallengePreview(decoded) {
     ${versionLine}
     ${nameLine}
     ${descLine}
-    <div><strong>预算：</strong>${params.budget}（初始设施花费 ${facilityCost}，剩余 ${remainingBudget}）</div>
-    <div><strong>初始水质：</strong>${params.water}</div>
-    <div><strong>初始幼体：</strong>${params.larvae}</div>
-    <div><strong>初始多样性：</strong>${params.bio}</div>
-    <div><strong>回合：</strong>${params.turns} 潮</div>
+    <div><strong>预算：</strong>${escapeHtml(params.budget)}（初始设施花费 ${escapeHtml(facilityCost)}，剩余 ${escapeHtml(remainingBudget)}）</div>
+    <div><strong>初始水质：</strong>${escapeHtml(params.water)}</div>
+    <div><strong>初始幼体：</strong>${escapeHtml(params.larvae)}</div>
+    <div><strong>初始多样性：</strong>${escapeHtml(params.bio)}</div>
+    <div><strong>回合：</strong>${escapeHtml(params.turns)} 潮</div>
     <div><strong>风暴概率：</strong>${Math.round(params.stormChance * 100)}%</div>
     <div><strong>胜利条件：</strong>${goalDesc}</div>
-    <div><strong>污染格：</strong>${pollutionCount} 格</div>
-    <div><strong>初始设施：</strong>${facilityCount} 处（${facilityDesc}）</div>
+    <div><strong>污染格：</strong>${escapeHtml(pollutionCount)} 格</div>
+    <div><strong>初始设施：</strong>${escapeHtml(facilityCount)} 处（${escapeHtml(facilityDesc)}）</div>
     ${seedLine}
     ${statusHtml}
   `;

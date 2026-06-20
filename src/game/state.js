@@ -382,11 +382,11 @@ export function checkWinCondition(game, scene) {
 
   let win = score >= scene.goalScore;
 
-  if (scene.goalPollutionMax !== undefined && pollution > scene.goalPollutionMax) {
+  if (scene.goalPollutionMax != null && pollution > scene.goalPollutionMax) {
     win = false;
   }
 
-  if (scene.goalMinStats !== undefined) {
+  if (scene.goalMinStats != null) {
     if (
       game.water < scene.goalMinStats ||
       game.larvae < scene.goalMinStats ||
