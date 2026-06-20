@@ -14,6 +14,7 @@ import {
   getFacilityCost,
   getFacilityName
 } from '../game/rules-engine.js';
+import { seedFromString } from '../game/seeded-random.js';
 
 const FACILITY_TYPES = ['oyster', 'grass', 'pile', 'buffer'];
 const FACILITY_COLORS = {
@@ -46,6 +47,8 @@ function createInitialSimState(game, scene) {
     activePlanIndex: 0,
     simulationRuns: 100,
     simulationTurns: remainingTurns,
+    seedMode: 'current',
+    customSeed: '',
     isSimulating: false,
     progress: 0,
     selectedCellForPlacement: -1,
@@ -99,10 +102,34 @@ function renderSimulator(container, game, scene) {
               ${generateTurnOptions(scene.turns - game.turn + 1)}
             </select>
           </div>
+          <div class="config-row">
+            <label>随机种子</label>
+            <div class="seed-mode-selector">
+              <label class="seed-mode-option">
+                <input type="radio" name="simSeedMode" value="current" ${simState.seedMode === 'current' ? 'checked' : ''}>
+                <span>使用当前种子</span>
+              </label>
+              <label class="seed-mode-option">
+                <input type="radio" name="simSeedMode" value="custom" ${simState.seedMode === 'custom' ? 'checked' : ''}>
+                <span>指定种子</span>
+              </label>
+            </div>
+          </div>
+          ${simState.seedMode === 'custom' ? `
+            <div class="config-row">
+              <label>种子值</label>
+              <input type="text" id="simCustomSeedInput" placeholder="输入数字或文字种子" value="${simState.customSeed}" class="seed-input">
+            </div>
+          ` : ''}
           <div class="config-info">
             <div>当前预算：<strong>${game.budget}</strong></div>
             <div>方案预算：<strong class="${remainingBudget < 0 ? 'danger' : ''}">${remainingBudget}</strong></div>
             <div>剩余回合：<strong>${scene.turns - game.turn + 1}</strong> 潮</div>
+            <div>
+              模拟种子：<strong>${simState.seedMode === 'custom' && simState.customSeed.trim() 
+                ? simState.customSeed.trim() 
+                : '当前对局种子（' + (game.seedStr || game.seed) + '）'}</strong>
+            </div>
           </div>
         </div>
 
@@ -409,6 +436,10 @@ function renderResultsSection() {
           <span>牡蛎净化次数</span>
           <strong>${analysis.stats.pollutionCleanedMean.toFixed(1)}格</strong>
         </div>
+        <div class="stat-item">
+          <span>种子来源</span>
+          <strong>${analysis.baseSeed != null ? `自定义 (${analysis.baseSeed})` : '当前对局'}</strong>
+        </div>
       </div>
     </div>
 
@@ -670,6 +701,21 @@ function bindSimulatorEvents(container) {
     };
   }
 
+  const seedModeRadios = container.querySelectorAll('input[name="simSeedMode"]');
+  seedModeRadios.forEach(radio => {
+    radio.onchange = () => {
+      simState.seedMode = radio.value;
+      renderSimulator(container, simState.game, simState.scene);
+    };
+  });
+
+  const customSeedInput = container.querySelector('#simCustomSeedInput');
+  if (customSeedInput) {
+    customSeedInput.addEventListener('input', (e) => {
+      simState.customSeed = e.target.value;
+    });
+  }
+
   const runBtn = container.querySelector('#runSimulationBtn');
   if (runBtn) {
     runBtn.onclick = () => runAllSimulations(container);
@@ -839,6 +885,17 @@ async function runAllSimulations(container) {
   const runs = simState.simulationRuns;
   const turns = simState.simulationTurns;
 
+  let customSeed = null;
+  if (simState.seedMode === 'custom' && simState.customSeed.trim()) {
+    const seedStr = simState.customSeed.trim();
+    const numSeed = parseInt(seedStr, 10);
+    if (!isNaN(numSeed) && isFinite(numSeed)) {
+      customSeed = numSeed;
+    } else {
+      customSeed = seedFromString(seedStr);
+    }
+  }
+
   const totalPlans = simState.candidatePlans.length;
   let completedPlans = 0;
 
@@ -853,6 +910,7 @@ async function runAllSimulations(container) {
         prePlacements: placements,
         runs,
         turnsToSimulate: turns,
+        customSeed,
         onProgress: (done, total) => {
           simState.progress = Math.round(((completedPlans * 100) + (done / total * 100)) / totalPlans);
           if (container.querySelector('#runSimulationBtn')) {

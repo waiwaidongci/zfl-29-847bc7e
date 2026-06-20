@@ -151,7 +151,7 @@ export function showDailyChallengeInfo(overlayEl, onStart, onClose) {
         </ul>
       </div>
       <div class="daily-challenge-info-actions">
-        <button class="secondary" id="dailyInfoCancelBtn">返回场景选择</button>
+        <button class="secondary" id="dailyInfoCancelBtn">关闭</button>
         <button id="dailyInfoStartBtn">🎯 开始今日挑战</button>
       </div>
     </div>
@@ -166,6 +166,8 @@ export function showDailyChallengeInfo(overlayEl, onStart, onClose) {
   overlayEl.querySelector('#dailyInfoStartBtn').onclick = () => {
     if (onStart) onStart();
   };
+
+  showOverlay(overlayEl);
 }
 
 export function showOverlay(overlayEl) {

@@ -91,8 +91,10 @@ import {
   hideEditor as hideEditorModal,
   hideOverlay,
   bindResultTabSwitcher,
-  renderReplayView
+  renderReplayView,
+  showDailyChallengeInfo
 } from './ui/modals.js';
+import { getTodayDailyChallenge, getDateStr } from './game/daily-challenge.js';
 import { getCampaign, getChapterByOrder } from './data/campaigns.js';
 import {
   createCampaignProgress,
@@ -153,6 +155,8 @@ const storyOverlay = document.querySelector('#storyOverlay');
 const campaignResultOverlay = document.querySelector('#campaignResultOverlay');
 const simulatorBtn = document.querySelector('#simulatorBtn');
 const simulatorOverlay = document.querySelector('#simulatorOverlay');
+const dailyBtn = document.querySelector('#dailyBtn');
+const dailyInfoOverlay = document.querySelector('#dailyInfoOverlay');
 
 const templateLibBtn = document.querySelector('#templateLibBtn');
 const draftBtn = document.querySelector('#draftBtn');
@@ -171,6 +175,7 @@ let currentAdvice = null;
 
 let currentSceneId = DEFAULT_SCENE_ID;
 let selectedSceneId = DEFAULT_SCENE_ID;
+let currentDailyChallengeDate = null;
 let currentTool = 'oyster';
 let game = null;
 let editorState = createEditorState();
@@ -377,9 +382,48 @@ function openSceneSelect() {
   challengeStartBtn.style.cursor = 'not-allowed';
   renderSceneList(sceneListEl, selectedSceneId, id => {
     selectedSceneId = id;
-    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect);
-  });
+    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect, handleDailySelect);
+  }, handleDailySelect);
   showSceneSelect(sceneOverlay, overlay);
+}
+
+function handleDailySelect() {
+  hideOverlay(sceneOverlay);
+  openDailyChallenge(() => openSceneSelect());
+}
+
+function openDailyChallenge(onCloseFallback) {
+  showDailyChallengeInfo(dailyInfoOverlay, () => {
+    const todayStr = getDateStr();
+    hideOverlay(dailyInfoOverlay);
+    startDailyChallenge(todayStr);
+  }, () => {
+    hideOverlay(dailyInfoOverlay);
+    if (onCloseFallback) onCloseFallback();
+  });
+}
+
+function startDailyChallenge(dateStr) {
+  const challenge = getTodayDailyChallenge();
+  if (!challenge) return;
+
+  currentSceneId = challenge.id;
+  currentDailyChallengeDate = dateStr;
+  game = createGameState({
+    scene: challenge,
+    seed: challenge.seed
+  });
+  game.gameMode = 'daily';
+  game.dailyDate = dateStr;
+
+  hideOverlay(sceneOverlay);
+  updateSceneInfo(sceneInfoEl, challenge);
+  renderToolButtons(currentTool);
+  renderGrid(game);
+  renderStats(game);
+  renderLog(game);
+  updateAdvisor();
+  clearHighlights();
 }
 
 function openSimulator() {
@@ -1088,6 +1132,7 @@ function bindGlobalEvents() {
   campaignOverlay.querySelector('.campaign-close-btn').onclick = () => hideCampaignOverlay(campaignOverlay);
   seedTextEl.onclick = handleSeedClick;
   simulatorBtn.onclick = openSimulator;
+  dailyBtn.onclick = () => openDailyChallenge();
 
   challengeLoadBtn.onclick = handleLoadChallenge;
   challengeStartBtn.onclick = handleStartChallenge;

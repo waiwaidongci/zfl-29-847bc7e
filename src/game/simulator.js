@@ -261,11 +261,12 @@ export function runMonteCarloSimulation(originalGame, scene, options = {}) {
     prePlacements = [],
     runs = 100,
     turnsToSimulate = null,
+    customSeed = null,
     onProgress = null
   } = options;
 
   const results = [];
-  const baseSeed = originalGame.seed;
+  const baseSeed = customSeed != null ? customSeed : originalGame.seed;
 
   for (let i = 0; i < runs; i++) {
     const runSeed = (baseSeed + i * 2654435761) | 0;
@@ -345,6 +346,7 @@ function analyzeSimulationResults(results, options) {
     runCount: n,
     scoreStats,
     pollutionStats,
+    baseSeed: options.customSeed != null ? options.customSeed : null,
     stats: {
       waterMean: waters.reduce((a, b) => a + b, 0) / n,
       larvaeMean: larvaes.reduce((a, b) => a + b, 0) / n,
