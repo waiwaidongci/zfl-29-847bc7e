@@ -246,6 +246,11 @@ export function spreadPollution(game, piles) {
 
 export function triggerStorm(game) {
   const rules = game.rules || createRulesContext();
+
+  if (!rules.storm.enabled || rules.effects.stormImmunity) {
+    return;
+  }
+
   const result = triggerStormWithRules(game, rules);
   const { damaged, damagedType, bufferCount, targetType, bufferSaved } = result;
 

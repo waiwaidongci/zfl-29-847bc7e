@@ -22,7 +22,7 @@ export function advanceTurn(game, scene) {
   applyEcosystemEffects(game);
   spreadPollution(game, piles);
 
-  if (game.rng.random() < scene.stormChance) {
+  if (rules.storm.enabled && !rules.effects.stormImmunity && game.rng.random() < scene.stormChance) {
     triggerStorm(game);
   }
 

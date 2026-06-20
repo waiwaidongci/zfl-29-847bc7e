@@ -1,5 +1,21 @@
-import { GRID_SIZE, COSTS, SANDBOX_SCENE_ID } from '../game/constants.js';
+import { GRID_SIZE, COSTS as FALLBACK_COSTS, SANDBOX_SCENE_ID } from '../game/constants.js';
 import { addScene } from '../data/scenes.js';
+import { createRulesContext, getFacilityCost } from '../game/rules-engine.js';
+
+function getTempRulesForDecoded(decoded) {
+  if (decoded && decoded.rules) {
+    return createRulesContext(decoded.rules);
+  }
+  return null;
+}
+
+function calcFacilityCostForDecoded(decoded, facilities) {
+  const rules = getTempRulesForDecoded(decoded);
+  if (rules) {
+    return facilities.reduce((sum, c) => sum + getFacilityCost(rules, c.type), 0);
+  }
+  return facilities.reduce((sum, c) => sum + FALLBACK_COSTS[c.type], 0);
+}
 
 const CODE_PREFIX_V1 = 'ZC1:';
 const CODE_PREFIX_V2 = 'ZC2:';
@@ -284,9 +300,8 @@ export function validateChallengeConfig(decoded) {
     errors.push('初始预算为0或负数，无法放置任何设施。');
   }
 
-  const facilityCost = cells
-    .filter(c => c.type !== 'empty')
-    .reduce((sum, c) => sum + COSTS[c.type], 0);
+  const initialFacilities = cells.filter(c => c.type !== 'empty');
+  const facilityCost = calcFacilityCostForDecoded(decoded, initialFacilities);
   if (facilityCost > params.budget) {
     errors.push(`初始设施花费(${facilityCost})超过初始预算(${params.budget})，挑战无法开始。`);
   }
@@ -322,7 +337,7 @@ export function buildChallengeScene(decoded) {
     .filter(i => i >= 0);
 
   const initialFacilities = cells.filter(c => c.type !== 'empty');
-  const facilityCost = initialFacilities.reduce((sum, c) => sum + COSTS[c.type], 0);
+  const facilityCost = calcFacilityCostForDecoded(decoded, initialFacilities);
 
   const goalParts = [`生态评分 ≥ ${params.goalScore}`];
   if (params.goalPollutionMax != null) {

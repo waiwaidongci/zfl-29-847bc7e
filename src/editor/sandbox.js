@@ -1,5 +1,21 @@
-import { GRID_SIZE, COSTS, ICONS, SANDBOX_SCENE_ID } from '../game/constants.js';
+import { GRID_SIZE, COSTS as FALLBACK_COSTS, ICONS, SANDBOX_SCENE_ID } from '../game/constants.js';
 import { addScene } from '../data/scenes.js';
+import { createRulesContext, getFacilityCost } from '../game/rules-engine.js';
+
+function getTempRules(editorState) {
+  if (editorState.rules) {
+    return createRulesContext(editorState.rules);
+  }
+  return null;
+}
+
+function calcFacilityCost(editorState, facilities) {
+  const rules = getTempRules(editorState);
+  if (rules) {
+    return facilities.reduce((sum, c) => sum + getFacilityCost(rules, c.type), 0);
+  }
+  return facilities.reduce((sum, c) => sum + FALLBACK_COSTS[c.type], 0);
+}
 
 export function createEditorState() {
   return {
@@ -72,7 +88,7 @@ export function updateEditorPreview() {
     const repairableCount = editorState.cells.filter(c => !c.polluted).length;
     const facilities = editorState.cells.filter(c => c.type !== 'empty');
     const facilityCount = facilities.length;
-    const facilityCost = facilities.reduce((sum, c) => sum + COSTS[c.type], 0);
+    const facilityCost = calcFacilityCost(editorState, facilities);
 
     document.querySelector('#previewPollution').textContent = pollutionCount;
     document.querySelector('#previewRepairable').textContent = repairableCount;
@@ -168,9 +184,8 @@ export function validateEditorConfig(editorState) {
     errors.push('最低指标要求超出范围（0 - 100）。');
   }
 
-  const facilityCost = cells
-    .filter(c => c.type !== 'empty')
-    .reduce((sum, c) => sum + COSTS[c.type], 0);
+  const facilities = cells.filter(c => c.type !== 'empty');
+  const facilityCost = calcFacilityCost(editorState, facilities);
   if (facilityCost > params.budget) {
     errors.push(`初始设施花费(${facilityCost})超过初始预算(${params.budget})。`);
   }
@@ -194,7 +209,7 @@ export function buildSandboxScene(editorState) {
     .filter(i => i >= 0);
 
   const initialFacilities = editorState.cells.filter(c => c.type !== 'empty');
-  const facilityCost = initialFacilities.reduce((sum, c) => sum + COSTS[c.type], 0);
+  const facilityCost = calcFacilityCost(editorState, initialFacilities);
   const params = editorState.params;
 
   const goalParts = [`生态评分 ≥ ${params.goalScore}`];
