@@ -99,6 +99,7 @@ import {
   updateSceneInfo,
   showEditor as showEditorModal,
   hideEditor as hideEditorModal,
+  showOverlay,
   hideOverlay,
   bindResultTabSwitcher,
   renderReplayView,
