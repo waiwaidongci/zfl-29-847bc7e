@@ -6,13 +6,15 @@ export const CELL_TYPES = {
   EMPTY: 'empty',
   OYSTER: 'oyster',
   GRASS: 'grass',
-  PILE: 'pile'
+  PILE: 'pile',
+  BUFFER: 'buffer'
 };
 
 export const COSTS = {
   oyster: 12,
   grass: 10,
   pile: 8,
+  buffer: 15,
   erase: 0
 };
 
@@ -20,6 +22,7 @@ export const ICONS = {
   oyster: '礁',
   grass: '草',
   pile: '桩',
+  buffer: '缓',
   empty: ''
 };
 
@@ -46,6 +49,10 @@ export const OYSTER_CLEAN_CHANCE = 0.45;
 
 export const STORM_DAMAGE_CHANCE = 0.55;
 export const STORM_WATER_PENALTY = 8;
+
+export const BUFFER_RANGE = 2;
+export const BUFFER_STORM_REDUCTION = 0.3;
+export const BUFFER_POLLUTION_REDUCTION = 0.02;
 
 export const SCORE_WATER_WEIGHT = 0.35;
 export const SCORE_LARVAE_WEIGHT = 0.25;

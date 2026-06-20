@@ -55,6 +55,31 @@ export const CODEX_ENTRIES = {
       <text x="40" y="6" text-anchor="middle" font-size="7" fill="#c0392b" opacity="0.6">STOP</text>
     </svg>`
   },
+  buffer: {
+    id: 'buffer',
+    category: 'facility',
+    name: '潮汐缓冲带',
+    unlockEvent: 'place_buffer',
+    desc: '潮汐缓冲带是天然的生态防御工程，通过营造缓坡湿地和原生植被带，在周围2格范围内降低30%风暴损毁概率，并使污染扩散概率降低2%。造价15预算，不直接提升生态指标，但能有效保护已有设施，适合高风暴风险或污染严重区域。',
+    diagram: `<svg viewBox="0 0 80 60" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bufferGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+          <stop offset="0%" stop-color="#5a8a86"/>
+          <stop offset="50%" stop-color="#6eb77a"/>
+          <stop offset="100%" stop-color="#a8d5a0"/>
+        </linearGradient>
+      </defs>
+      <path d="M5 45 Q20 38 35 42 Q50 46 75 40 L75 55 L5 55 Z" fill="url(#bufferGrad)" stroke="#4a7a76" stroke-width="1"/>
+      <path d="M8 42 Q25 35 40 38 Q55 41 72 36" stroke="#fff" stroke-width="1" fill="none" opacity="0.4" stroke-dasharray="3,2"/>
+      <path d="M15 45 Q14 30 18 20" stroke="#4a9e56" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M30 43 Q28 28 33 15" stroke="#5ab868" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M45 44 Q47 30 43 18" stroke="#4a9e56" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M60 42 Q58 32 63 22" stroke="#5ab868" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <circle cx="40" cy="12" r="10" fill="none" stroke="#f39c12" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
+      <circle cx="40" cy="12" r="5" fill="none" stroke="#f39c12" stroke-width="1" stroke-dasharray="2,2" opacity="0.4"/>
+      <text x="40" y="8" text-anchor="middle" font-size="6" fill="#f39c12" opacity="0.8">2格范围</text>
+    </svg>`
+  },
   pollution_spread: {
     id: 'pollution_spread',
     category: 'pollution',

@@ -14,7 +14,7 @@ import { unlockByEvent } from './codex.js';
 export function advanceTurn(game, scene) {
   if (game.ended) return { ended: false };
 
-  const { oysters, grass, piles, pollution } = getFacilityCounts(game);
+  const { oysters, grass, piles, buffers, pollution } = getFacilityCounts(game);
 
   applyEcosystemEffects(game);
   spreadPollution(game, piles);
@@ -36,7 +36,7 @@ export function advanceTurn(game, scene) {
   });
 
   game.log.unshift(
-    `第${game.turn}潮结束：牡蛎礁${oysters}处，海草床${grass}处，围护桩${piles}处。`
+    `第${game.turn}潮结束：牡蛎礁${oysters}处，海草床${grass}处，围护桩${piles}处，潮汐缓冲带${buffers}处。`
   );
 
   if (game.turn >= scene.turns) {

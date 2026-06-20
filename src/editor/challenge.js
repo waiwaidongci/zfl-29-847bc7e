@@ -10,7 +10,9 @@ const CELL_CODE_MAP = {
   'grass,false': 4,
   'grass,true': 5,
   'pile,false': 6,
-  'pile,true': 7
+  'pile,true': 7,
+  'buffer,false': 8,
+  'buffer,true': 9
 };
 const CELL_CODE_REVERSE = [
   { type: 'empty', polluted: false },
@@ -20,7 +22,9 @@ const CELL_CODE_REVERSE = [
   { type: 'grass', polluted: false },
   { type: 'grass', polluted: true },
   { type: 'pile', polluted: false },
-  { type: 'pile', polluted: true }
+  { type: 'pile', polluted: true },
+  { type: 'buffer', polluted: false },
+  { type: 'buffer', polluted: true }
 ];
 
 function base64UrlEncode(str) {
@@ -71,7 +75,7 @@ function decodeCells(cellsStr) {
   for (let i = 0; i < cellsStr.length; i++) {
     const ch = cellsStr[i];
     const code = parseInt(ch, 10);
-    if (isNaN(code) || code < 0 || code > 7) {
+    if (isNaN(code) || code < 0 || code > 9) {
       throw new Error(`第 ${i} 位单元格编码无效："${ch}"。`);
     }
     cells.push({ ...CELL_CODE_REVERSE[code] });

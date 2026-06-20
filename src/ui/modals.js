@@ -381,6 +381,10 @@ function renderReplayStats(snapshot) {
       <span class="replay-stat-label">围护桩</span>
       <span class="replay-stat-value">${snapshot.piles}${delta('piles')}</span>
     </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">潮汐缓冲带</span>
+      <span class="replay-stat-value">${snapshot.buffers ?? 0}${delta('buffers')}</span>
+    </div>
   `;
 }
 
@@ -520,6 +524,7 @@ function renderStrategySummary(replay) {
   const oysterPlaced = placeEvents.filter(e => e.data && e.data.type === 'oyster').length;
   const grassPlaced = placeEvents.filter(e => e.data && e.data.type === 'grass').length;
   const pilePlaced = placeEvents.filter(e => e.data && e.data.type === 'pile').length;
+  const bufferPlaced = placeEvents.filter(e => e.data && e.data.type === 'buffer').length;
   const totalSpent = placeEvents.reduce((sum, e) => sum + (e.data ? e.data.cost || 0 : 0), 0);
 
   const stormDamageCount = stormEvents.filter(e => e.data && e.data.damaged).length;
@@ -548,7 +553,16 @@ function renderStrategySummary(replay) {
     strategyInsights.push('多样性偏低，海草床对提升多样性效果显著，建议增加。');
   }
   if (stormDamageCount > 0) {
-    strategyInsights.push(`本局共遭遇${stormEvents.length}次风暴，${stormDamageCount}次造成设施损坏，可考虑分散设施布局。`);
+    strategyInsights.push(`本局共遭遇${stormEvents.length}次风暴，${stormDamageCount}次造成设施损坏，可考虑分散设施布局${bufferPlaced === 0 ? '或建造潮汐缓冲带提供保护' : ''}。`);
+  }
+  if (bufferPlaced > 0) {
+    strategyInsights.push(`本局建造了${bufferPlaced}处潮汐缓冲带，为设施提供了风暴减伤和污染抑制保护。`);
+    if (stormDamageCount === 0 && stormEvents.length > 0) {
+      strategyInsights.push('潮汐缓冲带效果显著，本局风暴未造成任何设施损坏！');
+    }
+  }
+  if (stormDamageCount > 0 && bufferPlaced === 0) {
+    strategyInsights.push('风暴造成了设施损坏，建议在高风险区域建造潮汐缓冲带降低损毁概率。');
   }
   if (totalCleaned > 0) {
     strategyInsights.push(`牡蛎礁共净化${totalCleaned}个污染格，净化效果已触发。`);
@@ -576,7 +590,7 @@ function renderStrategySummary(replay) {
       <div class="summary-card">
         <div class="summary-label">设施投入</div>
         <div class="summary-value">共 ${placeEvents.length} 处 / ${totalSpent} 预算</div>
-        <div class="summary-sub">牡蛎礁${oysterPlaced} · 海草床${grassPlaced} · 围护桩${pilePlaced}</div>
+        <div class="summary-sub">牡蛎礁${oysterPlaced} · 海草床${grassPlaced} · 围护桩${pilePlaced} · 缓冲带${bufferPlaced}</div>
         ${removeEvents.length > 0 ? `<div class="summary-sub">移除 ${removeEvents.length} 处</div>` : ''}
       </div>
       <div class="summary-card">

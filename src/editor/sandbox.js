@@ -76,7 +76,7 @@ export function handleEditorClick(editorState, index) {
   } else if (tool === 'clearAll') {
     resetEditorState(editorState);
     return true;
-  } else if (['oyster', 'grass', 'pile'].includes(tool)) {
+  } else if (['oyster', 'grass', 'pile', 'buffer'].includes(tool)) {
     if (cell.type === 'empty') {
       cell.type = tool;
     }
@@ -92,7 +92,7 @@ export function handleEditorHover(editorGridEl, index, enter, editTool) {
   if (enter) {
     if (editTool === 'pollute') {
       cell.classList.add('preview-pol');
-    } else if (['oyster', 'grass', 'pile'].includes(editTool)) {
+    } else if (['oyster', 'grass', 'pile', 'buffer'].includes(editTool)) {
       cell.classList.add('preview-obs');
     }
   } else {

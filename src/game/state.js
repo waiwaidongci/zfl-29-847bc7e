@@ -25,7 +25,10 @@ import {
   SCORE_BUDGET_WEIGHT,
   SCORE_POLLUTION_PENALTY,
   GRID_COLS,
-  GRID_ROWS
+  GRID_ROWS,
+  BUFFER_RANGE,
+  BUFFER_STORM_REDUCTION,
+  BUFFER_POLLUTION_REDUCTION
 } from './constants.js';
 import { unlockByEvent } from './codex.js';
 import { createRNG, generateSeed, seedToString } from './seeded-random.js';
@@ -67,7 +70,7 @@ export function createGameState(scene, options) {
     cells = createCellsFromPollutionIndices(scene.pollutionIndices || []);
   }
 
-  const { oysters, grass, piles, pollution } = getFacilityCountsFromCells(cells);
+  const { oysters, grass, piles, buffers, pollution } = getFacilityCountsFromCells(cells);
 
   const seed = opts.seed != null ? (opts.seed | 0) : generateSeed();
   const rng = createRNG(seed);
@@ -117,6 +120,7 @@ export function createGameState(scene, options) {
         oysters,
         grass,
         piles,
+        buffers,
         cells: serializeCells(cells)
       }],
       events: [{
@@ -134,12 +138,13 @@ function getFacilityCountsFromCells(cells) {
   const oysters = cells.filter(c => c.type === 'oyster').length;
   const grass = cells.filter(c => c.type === 'grass').length;
   const piles = cells.filter(c => c.type === 'pile').length;
+  const buffers = cells.filter(c => c.type === 'buffer').length;
   const pollution = cells.filter(c => c.polluted).length;
-  return { oysters, grass, piles, pollution };
+  return { oysters, grass, piles, buffers, pollution };
 }
 
 export function recordReplaySnapshot(game) {
-  const { oysters, grass, piles, pollution } = getFacilityCounts(game);
+  const { oysters, grass, piles, buffers, pollution } = getFacilityCounts(game);
   game.replay.snapshots.push({
     turn: game.turn,
     water: Math.round(game.water),
@@ -150,6 +155,7 @@ export function recordReplaySnapshot(game) {
     oysters,
     grass,
     piles,
+    buffers,
     cells: serializeCells(game.cells)
   });
 }
@@ -174,6 +180,39 @@ export function getNeighbors(index) {
   ]
     .filter(([a, b]) => a >= 0 && a < GRID_COLS && b >= 0 && b < GRID_ROWS)
     .map(([a, b]) => b * GRID_COLS + a);
+}
+
+export function getCellsInRange(index, range) {
+  const x = index % GRID_COLS;
+  const y = Math.floor(index / GRID_COLS);
+  const cells = [];
+  for (let dx = -range; dx <= range; dx++) {
+    for (let dy = -range; dy <= range; dy++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && nx < GRID_COLS && ny >= 0 && ny < GRID_ROWS) {
+        const distance = Math.abs(dx) + Math.abs(dy);
+        if (distance <= range) {
+          cells.push(ny * GRID_COLS + nx);
+        }
+      }
+    }
+  }
+  return cells;
+}
+
+function getBufferProtectionCount(cells, index) {
+  const protectedBy = new Set();
+  cells.forEach((cell, i) => {
+    if (cell.type === 'buffer') {
+      const protectedCells = getCellsInRange(i, BUFFER_RANGE);
+      if (protectedCells.includes(index)) {
+        protectedBy.add(i);
+      }
+    }
+  });
+  return protectedBy.size;
 }
 
 export function clamp(v) {
@@ -203,7 +242,7 @@ export function placeFacility(game, index, tool) {
   cell.type = tool;
   game.budget -= COSTS[tool];
 
-  const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩' };
+  const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩', buffer: '潮汐缓冲带' };
   game.log.unshift(`放置${nameMap[tool]}。`);
   recordReplayEvent(game, 'place', `放置${nameMap[tool]}`, { type: tool, cost: COSTS[tool] });
   unlockByEvent('place_' + tool);
@@ -215,8 +254,9 @@ export function getFacilityCounts(game) {
   const oysters = game.cells.filter(c => c.type === 'oyster').length;
   const grass = game.cells.filter(c => c.type === 'grass').length;
   const piles = game.cells.filter(c => c.type === 'pile').length;
+  const buffers = game.cells.filter(c => c.type === 'buffer').length;
   const pollution = game.cells.filter(c => c.polluted).length;
-  return { oysters, grass, piles, pollution };
+  return { oysters, grass, piles, buffers, pollution };
 }
 
 export function spreadPollution(game, piles) {
@@ -226,9 +266,10 @@ export function spreadPollution(game, piles) {
     if (!cell.polluted) return;
     for (const n of getNeighbors(i)) {
       if (game.cells[n].type === 'pile') continue;
+      const bufferCount = getBufferProtectionCount(game.cells, n);
       const spreadChance = Math.max(
         POLLUTION_SPREAD_MIN,
-        POLLUTION_SPREAD_BASE - piles * POLLUTION_SPREAD_PILE_REDUCTION
+        POLLUTION_SPREAD_BASE - piles * POLLUTION_SPREAD_PILE_REDUCTION - bufferCount * BUFFER_POLLUTION_REDUCTION
       );
       if (game.rng.random() < spreadChance) {
         newPolluted.add(n);
@@ -265,18 +306,25 @@ export function triggerStorm(game) {
   const placed = game.cells.filter(c => c.type !== CELL_TYPES.EMPTY);
   let damaged = false;
   let damagedType = null;
-  if (placed.length && game.rng.random() < STORM_DAMAGE_CHANCE) {
+  if (placed.length) {
     const idx = Math.floor(game.rng.random() * placed.length);
-    damagedType = placed[idx].type;
-    placed[idx].type = CELL_TYPES.EMPTY;
-    damaged = true;
+    const targetCell = placed[idx];
+    const targetIndex = game.cells.indexOf(targetCell);
+    const bufferCount = getBufferProtectionCount(game.cells, targetIndex);
+    const adjustedDamageChance = Math.max(0, STORM_DAMAGE_CHANCE * (1 - bufferCount * BUFFER_STORM_REDUCTION));
+    if (game.rng.random() < adjustedDamageChance) {
+      damagedType = targetCell.type;
+      targetCell.type = CELL_TYPES.EMPTY;
+      damaged = true;
+    }
   }
   game.water -= STORM_WATER_PENALTY;
   game.stormHitCount = (game.stormHitCount || 0) + 1;
   if (damaged) {
     game.stormDamageCount = (game.stormDamageCount || 0) + 1;
   }
-  const stormMsg = damaged ? `风暴潮冲刷了修复区，一处${{oyster:'牡蛎礁',grass:'海草床',pile:'围护桩'}[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
+  const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩', buffer: '潮汐缓冲带' };
+  const stormMsg = damaged ? `风暴潮冲刷了修复区，一处${nameMap[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
   game.log.unshift(stormMsg);
   recordReplayEvent(game, 'storm', stormMsg, { damaged, damagedType });
   unlockByEvent('storm');

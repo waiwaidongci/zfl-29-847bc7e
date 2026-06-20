@@ -11,7 +11,8 @@ function getFacilityUseHistory(game) {
   return {
     oyster: (initial.oysters || 0) + placeEvents.filter(e => e.data.type === 'oyster').length,
     grass: (initial.grass || 0) + placeEvents.filter(e => e.data.type === 'grass').length,
-    pile: (initial.piles || 0) + placeEvents.filter(e => e.data.type === 'pile').length
+    pile: (initial.piles || 0) + placeEvents.filter(e => e.data.type === 'pile').length,
+    buffer: (initial.buffers || 0) + placeEvents.filter(e => e.data.type === 'buffer').length
   };
 }
 
@@ -78,6 +79,15 @@ export const achievements = [
     icon: '🏗️',
     type: 'cumulative',
     check: (stats) => stats.totalPiles >= 50
+  },
+  {
+    id: 'buffer_30',
+    category: 'general',
+    name: '缓冲卫士',
+    desc: '累计放置 30 处潮汐缓冲带。',
+    icon: '🌿',
+    type: 'cumulative',
+    check: (stats) => stats.totalBuffers >= 30
   },
   {
     id: 'clean_100',
@@ -250,6 +260,46 @@ export const achievements = [
       if (!game || !game.ended || !stats.lastWin) return false;
       const used = getFacilityUseHistory(game);
       return used.oyster > 0 && used.grass === 0 && used.pile === 0;
+    }
+  },
+  {
+    id: 'buffer_master',
+    category: 'special',
+    name: '缓冲大师',
+    desc: '在任意场景胜利时，放置了至少 5 处潮汐缓冲带。',
+    icon: '🌊',
+    type: 'game',
+    check: (stats, game, scene) => {
+      if (!game || !game.ended || !stats.lastWin) return false;
+      const used = getFacilityUseHistory(game);
+      return used.buffer >= 5;
+    }
+  },
+  {
+    id: 'buffer_saves_day',
+    category: 'special',
+    name: '缓冲救场',
+    desc: '在风暴中，潮汐缓冲带成功保护设施免受损毁至少 3 次。',
+    icon: '🛡️',
+    type: 'game',
+    check: (stats, game, scene) => {
+      if (!game || !game.ended || !stats.lastWin) return false;
+      const stormEvents = game.replay.events.filter(e => e.type === 'storm' && e.data && !e.data.damaged);
+      return stormEvents.length >= 3;
+    }
+  },
+  {
+    id: 'buffer_defense_line',
+    category: 'special',
+    name: '缓冲防线',
+    desc: '在「风暴前线」胜利时，全程未发生任何设施损坏，且至少放置了 3 处潮汐缓冲带。',
+    icon: '🏰',
+    type: 'game',
+    check: (stats, game, scene) => {
+      if (!game || !game.ended || !stats.lastWin || scene.id !== 'storm') return false;
+      const used = getFacilityUseHistory(game);
+      const damageEvents = game.replay.events.filter(e => e.type === 'storm' && e.data && e.data.damaged);
+      return used.buffer >= 3 && damageEvents.length === 0;
     }
   }
 ];

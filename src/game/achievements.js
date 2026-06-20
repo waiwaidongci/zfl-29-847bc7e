@@ -10,6 +10,7 @@ let progressStats = {
   totalOysters: 0,
   totalGrass: 0,
   totalPiles: 0,
+  totalBuffers: 0,
   totalCleaned: 0,
   stormsSurvived: 0,
   wonScenes: [],
@@ -26,6 +27,7 @@ function defaultProgress() {
     totalOysters: 0,
     totalGrass: 0,
     totalPiles: 0,
+    totalBuffers: 0,
     totalCleaned: 0,
     stormsSurvived: 0,
     wonScenes: [],
@@ -113,6 +115,7 @@ export function recordPlaceFacility(type) {
   if (type === 'oyster') progressStats.totalOysters += 1;
   if (type === 'grass') progressStats.totalGrass += 1;
   if (type === 'pile') progressStats.totalPiles += 1;
+  if (type === 'buffer') progressStats.totalBuffers += 1;
   saveAchievementsState();
 }
 

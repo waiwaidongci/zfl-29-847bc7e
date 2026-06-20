@@ -416,6 +416,7 @@ function formatChallengePreview(decoded) {
   const oysterCount = facilities.filter(c => c.type === 'oyster').length;
   const grassCount = facilities.filter(c => c.type === 'grass').length;
   const pileCount = facilities.filter(c => c.type === 'pile').length;
+  const bufferCount = facilities.filter(c => c.type === 'buffer').length;
   const remainingBudget = decoded.params.budget - facilityCost;
 
   const validateErrors = validateChallengeConfig(decoded);
@@ -426,13 +427,20 @@ function formatChallengePreview(decoded) {
     statusHtml = `<div style="color:#237070; margin-top:6px;">✅ 配置有效，可以开始挑战。</div>`;
   }
 
+  const facilityParts = [];
+  if (oysterCount > 0) facilityParts.push(`牡蛎礁 ${oysterCount}`);
+  if (grassCount > 0) facilityParts.push(`海草床 ${grassCount}`);
+  if (pileCount > 0) facilityParts.push(`围护桩 ${pileCount}`);
+  if (bufferCount > 0) facilityParts.push(`缓冲带 ${bufferCount}`);
+  const facilityDesc = facilityParts.length > 0 ? facilityParts.join(' · ') : '无';
+
   return `
     <div><strong>预算：</strong>${decoded.params.budget}（初始设施花费 ${facilityCost}，剩余 ${remainingBudget}）</div>
     <div><strong>回合：</strong>${decoded.params.turns} 潮</div>
     <div><strong>风暴概率：</strong>${Math.round(decoded.params.stormChance * 100)}%</div>
     <div><strong>目标评分：</strong>${decoded.params.goalScore}</div>
     <div><strong>污染格：</strong>${pollutionCount} 格</div>
-    <div><strong>初始设施：</strong>${facilityCount} 处（牡蛎礁 ${oysterCount} · 海草床 ${grassCount} · 围护桩 ${pileCount}）</div>
+    <div><strong>初始设施：</strong>${facilityCount} 处（${facilityDesc}）</div>
     ${statusHtml}
   `;
 }

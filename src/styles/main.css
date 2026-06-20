@@ -16,6 +16,7 @@ button.secondary { background: #617b78; }
 .cell.oyster { background: #d4d4c8; }
 .cell.grass { background: #6eb77a; }
 .cell.pile { background: #b89568; }
+.cell.buffer { background: linear-gradient(135deg, #5a8a86 0%, #6eb77a 50%, #a8d5a0 100%); }
 .cell span { position: relative; z-index: 1; }
 .cell.highlighted { border: 3px solid #f39c12; box-shadow: 0 0 12px rgba(243, 156, 18, 0.6); transform: scale(1.05); z-index: 10; }
 .cell.highlighted::before { content: ""; position: absolute; inset: 0; background: rgba(243, 156, 18, 0.25); z-index: 0; }
