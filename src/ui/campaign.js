@@ -644,6 +644,10 @@ function renderCampaignReplayStats(snapshot) {
       <span class="replay-stat-label">围护桩</span>
       <span class="replay-stat-value">${snapshot.piles}${delta('piles')}</span>
     </div>
+    <div class="replay-stat">
+      <span class="replay-stat-label">潮汐缓冲带</span>
+      <span class="replay-stat-value">${snapshot.buffers || 0}${delta('buffers')}</span>
+    </div>
   `;
 }
 

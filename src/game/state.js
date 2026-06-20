@@ -306,11 +306,14 @@ export function triggerStorm(game) {
   const placed = game.cells.filter(c => c.type !== CELL_TYPES.EMPTY);
   let damaged = false;
   let damagedType = null;
+  let bufferCount = 0;
+  let targetType = null;
   if (placed.length) {
     const idx = Math.floor(game.rng.random() * placed.length);
     const targetCell = placed[idx];
+    targetType = targetCell.type;
     const targetIndex = game.cells.indexOf(targetCell);
-    const bufferCount = getBufferProtectionCount(game.cells, targetIndex);
+    bufferCount = getBufferProtectionCount(game.cells, targetIndex);
     const adjustedDamageChance = Math.max(0, STORM_DAMAGE_CHANCE * (1 - bufferCount * BUFFER_STORM_REDUCTION));
     if (game.rng.random() < adjustedDamageChance) {
       damagedType = targetCell.type;
@@ -324,9 +327,18 @@ export function triggerStorm(game) {
     game.stormDamageCount = (game.stormDamageCount || 0) + 1;
   }
   const nameMap = { oyster: '牡蛎礁', grass: '海草床', pile: '围护桩', buffer: '潮汐缓冲带' };
-  const stormMsg = damaged ? `风暴潮冲刷了修复区，一处${nameMap[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
+  let stormMsg = damaged ? `风暴潮冲刷了修复区，一处${nameMap[damagedType] || '设施'}受损。` : '风暴潮冲刷了修复区，设施未受损。';
+  if (bufferCount > 0 && !damaged && targetType) {
+    stormMsg = `风暴潮冲刷了修复区，${nameMap[targetType]}在缓冲带保护下免受损毁。`;
+  }
   game.log.unshift(stormMsg);
-  recordReplayEvent(game, 'storm', stormMsg, { damaged, damagedType });
+  recordReplayEvent(game, 'storm', stormMsg, {
+    damaged,
+    damagedType,
+    bufferCount,
+    targetType,
+    bufferSaved: bufferCount > 0 && !damaged && targetType != null
+  });
   unlockByEvent('storm');
   if (!damaged) {
     unlockByEvent('storm_survive');

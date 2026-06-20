@@ -284,8 +284,8 @@ export const achievements = [
     type: 'game',
     check: (stats, game, scene) => {
       if (!game || !game.ended || !stats.lastWin) return false;
-      const stormEvents = game.replay.events.filter(e => e.type === 'storm' && e.data && !e.data.damaged);
-      return stormEvents.length >= 3;
+      const savedEvents = game.replay.events.filter(e => e.type === 'storm' && e.data && e.data.bufferSaved);
+      return savedEvents.length >= 3;
     }
   },
   {
