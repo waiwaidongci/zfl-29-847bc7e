@@ -6,10 +6,18 @@ export function createEditorState() {
     editTool: 'pollute',
     cells: Array.from({ length: GRID_SIZE }, () => ({ type: 'empty', polluted: false })),
     params: {
+      name: '',
+      desc: '',
       budget: 120,
+      water: 50,
+      larvae: 20,
+      bio: 20,
       turns: 10,
       stormChance: 0.2,
-      goalScore: 50
+      goalScore: 50,
+      goalPollutionMax: null,
+      goalMinStats: null,
+      seed: null
     }
   };
 }
@@ -18,10 +26,18 @@ export function resetEditorState(editorState) {
   editorState.editTool = 'pollute';
   editorState.cells = Array.from({ length: GRID_SIZE }, () => ({ type: 'empty', polluted: false }));
   editorState.params = {
+    name: '',
+    desc: '',
     budget: 120,
+    water: 50,
+    larvae: 20,
+    bio: 20,
     turns: 10,
     stormChance: 0.2,
-    goalScore: 50
+    goalScore: 50,
+    goalPollutionMax: null,
+    goalMinStats: null,
+    seed: null
   };
 }
 
@@ -118,6 +134,18 @@ export function validateEditorConfig(editorState) {
     errors.push('初始预算为0，无法放置任何设施。');
   }
 
+  if (params.water < 0 || params.water > 100) {
+    errors.push('初始水质超出范围（0 - 100）。');
+  }
+
+  if (params.larvae < 0 || params.larvae > 100) {
+    errors.push('初始幼体数量超出范围（0 - 100）。');
+  }
+
+  if (params.bio < 0 || params.bio > 100) {
+    errors.push('初始多样性超出范围（0 - 100）。');
+  }
+
   if (params.turns < 1 || params.turns > 30) {
     errors.push('回合数超出合理范围：请设置1-30回合。');
   }
@@ -128,6 +156,14 @@ export function validateEditorConfig(editorState) {
 
   if (params.goalScore < 0) {
     errors.push('目标评分不能为负数。');
+  }
+
+  if (params.goalPollutionMax != null && (params.goalPollutionMax < 0 || params.goalPollutionMax > GRID_SIZE)) {
+    errors.push(`污染上限超出范围（0 - ${GRID_SIZE}）。`);
+  }
+
+  if (params.goalMinStats != null && (params.goalMinStats < 0 || params.goalMinStats > 100)) {
+    errors.push('最低指标要求超出范围（0 - 100）。');
   }
 
   const facilityCost = cells
@@ -157,20 +193,32 @@ export function buildSandboxScene(editorState) {
 
   const initialFacilities = editorState.cells.filter(c => c.type !== 'empty');
   const facilityCost = initialFacilities.reduce((sum, c) => sum + COSTS[c.type], 0);
+  const params = editorState.params;
+
+  const goalParts = [`生态评分 ≥ ${params.goalScore}`];
+  if (params.goalPollutionMax != null) {
+    goalParts.push(`污染 ≤ ${params.goalPollutionMax}格`);
+  }
+  if (params.goalMinStats != null) {
+    goalParts.push(`所有指标 ≥ ${params.goalMinStats}`);
+  }
+  const goalDesc = goalParts.join(' 且 ');
 
   const sandboxScene = {
     id: SANDBOX_SCENE_ID,
-    name: '自定义沙盒',
-    desc: '玩家自定义配置的修复挑战场景。',
-    budget: editorState.params.budget - facilityCost,
-    water: 50,
-    larvae: 20,
-    bio: 20,
-    turns: editorState.params.turns,
-    stormChance: editorState.params.stormChance,
+    name: params.name || '自定义沙盒',
+    desc: params.desc || '玩家自定义配置的修复挑战场景。',
+    budget: params.budget - facilityCost,
+    water: params.water,
+    larvae: params.larvae,
+    bio: params.bio,
+    turns: params.turns,
+    stormChance: params.stormChance,
     pollutionIndices: pollutionIndices,
-    goalScore: editorState.params.goalScore,
-    goalDesc: `生态评分 ≥ ${editorState.params.goalScore}`,
+    goalScore: params.goalScore,
+    goalPollutionMax: params.goalPollutionMax,
+    goalMinStats: params.goalMinStats,
+    goalDesc,
     tags: ['自定义', '沙盒'],
     winText: '自定义挑战完成！你成功修复了这片潮间带。',
     loseText: '自定义挑战失败，继续调整策略尝试吧！',
@@ -182,17 +230,36 @@ export function buildSandboxScene(editorState) {
 }
 
 export function readParamsFromDOM() {
+  const goalPollutionMaxVal = document.querySelector('#paramGoalPollutionMax').value.trim();
+  const goalMinStatsVal = document.querySelector('#paramGoalMinStats').value.trim();
+  const seedVal = document.querySelector('#paramSeed').value.trim();
   return {
+    name: document.querySelector('#paramName').value.trim(),
+    desc: document.querySelector('#paramDesc').value.trim(),
     budget: Number(document.querySelector('#paramBudget').value),
+    water: Number(document.querySelector('#paramWater').value),
+    larvae: Number(document.querySelector('#paramLarvae').value),
+    bio: Number(document.querySelector('#paramBio').value),
     turns: Number(document.querySelector('#paramTurns').value),
     stormChance: Number(document.querySelector('#paramStorm').value),
-    goalScore: Number(document.querySelector('#paramGoal').value)
+    goalScore: Number(document.querySelector('#paramGoal').value),
+    goalPollutionMax: goalPollutionMaxVal !== '' ? Number(goalPollutionMaxVal) : null,
+    goalMinStats: goalMinStatsVal !== '' ? Number(goalMinStatsVal) : null,
+    seed: seedVal !== '' ? Number(seedVal) : null
   };
 }
 
 export function writeParamsToDOM(params) {
+  document.querySelector('#paramName').value = params.name || '';
+  document.querySelector('#paramDesc').value = params.desc || '';
   document.querySelector('#paramBudget').value = params.budget;
+  document.querySelector('#paramWater').value = params.water;
+  document.querySelector('#paramLarvae').value = params.larvae;
+  document.querySelector('#paramBio').value = params.bio;
   document.querySelector('#paramTurns').value = params.turns;
   document.querySelector('#paramStorm').value = params.stormChance;
   document.querySelector('#paramGoal').value = params.goalScore;
+  document.querySelector('#paramGoalPollutionMax').value = params.goalPollutionMax != null ? params.goalPollutionMax : '';
+  document.querySelector('#paramGoalMinStats').value = params.goalMinStats != null ? params.goalMinStats : '';
+  document.querySelector('#paramSeed').value = params.seed != null ? params.seed : '';
 }

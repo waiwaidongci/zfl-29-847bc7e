@@ -175,7 +175,20 @@ export function getTemplateById(id) {
 
 export function applyTemplateToEditor(editorState, template) {
   editorState.cells = template.cells.map(c => ({ ...c }));
-  editorState.params = { ...template.params };
+  editorState.params = {
+    name: template.params.name || '',
+    desc: template.params.desc || '',
+    budget: template.params.budget,
+    water: template.params.water != null ? template.params.water : 50,
+    larvae: template.params.larvae != null ? template.params.larvae : 20,
+    bio: template.params.bio != null ? template.params.bio : 20,
+    turns: template.params.turns,
+    stormChance: template.params.stormChance,
+    goalScore: template.params.goalScore,
+    goalPollutionMax: template.params.goalPollutionMax != null ? template.params.goalPollutionMax : null,
+    goalMinStats: template.params.goalMinStats != null ? template.params.goalMinStats : null,
+    seed: template.params.seed != null ? template.params.seed : null
+  };
   editorState.editTool = 'pollute';
 }
 

@@ -1,7 +1,8 @@
 import { GRID_SIZE, COSTS, SANDBOX_SCENE_ID } from '../game/constants.js';
 import { addScene } from '../data/scenes.js';
 
-const CODE_PREFIX = 'ZC1:';
+const CODE_PREFIX_V1 = 'ZC1:';
+const CODE_PREFIX_V2 = 'ZC2:';
 const CELL_CODE_MAP = {
   'empty,false': 0,
   'empty,true': 1,
@@ -85,17 +86,32 @@ function decodeCells(cellsStr) {
 
 export function generateChallengeCode(editorState) {
   const cellsStr = encodeCells(editorState.cells);
+  const params = editorState.params;
   const payload = {
-    v: 1,
-    b: editorState.params.budget,
-    t: editorState.params.turns,
-    s: editorState.params.stormChance,
-    g: editorState.params.goalScore,
+    v: 2,
+    n: params.name || '',
+    d: params.desc || '',
+    b: params.budget,
+    w: params.water,
+    l: params.larvae,
+    i: params.bio,
+    t: params.turns,
+    s: params.stormChance,
+    g: params.goalScore,
     c: cellsStr
   };
+  if (params.goalPollutionMax != null) {
+    payload.gp = params.goalPollutionMax;
+  }
+  if (params.goalMinStats != null) {
+    payload.gm = params.goalMinStats;
+  }
+  if (params.seed != null) {
+    payload.r = params.seed;
+  }
   const json = JSON.stringify(payload);
   const encoded = base64UrlEncode(json);
-  return CODE_PREFIX + encoded;
+  return CODE_PREFIX_V2 + encoded;
 }
 
 function validateNumber(val, name, min, max, allowFloat = false) {
@@ -115,17 +131,126 @@ function validateNumber(val, name, min, max, allowFloat = false) {
   return n;
 }
 
+function validateOptionalNumber(val, name, min, max, allowFloat = false) {
+  if (val === undefined || val === null) return null;
+  const n = Number(val);
+  if (isNaN(n)) {
+    throw new Error(`${name} 不是有效数字。`);
+  }
+  if (!allowFloat && !Number.isInteger(n)) {
+    throw new Error(`${name} 必须是整数。`);
+  }
+  if (n < min || n > max) {
+    throw new Error(`${name} 超出合理范围（${min} - ${max}）。`);
+  }
+  return n;
+}
+
+function parsePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('挑战码内容损坏：不是有效对象。');
+  }
+
+  const version = payload.v;
+
+  if (version === 1) {
+    return parseV1Payload(payload);
+  }
+
+  if (version === 2) {
+    return parseV2Payload(payload);
+  }
+
+  throw new Error(`不支持的挑战码版本：${version}。当前支持版本：1、2。`);
+}
+
+function parseV1Payload(payload) {
+  const budget = validateNumber(payload.b, '初始预算', 0, 10000);
+  const turns = validateNumber(payload.t, '回合上限', 1, 30);
+  const stormChance = validateNumber(payload.s, '风暴概率', 0, 1, true);
+  const goalScore = validateNumber(payload.g, '目标评分', 0, 10000);
+
+  if (typeof payload.c !== 'string') {
+    throw new Error('单元格编码格式错误：缺少单元格数据。');
+  }
+  const cells = decodeCells(payload.c);
+
+  return {
+    version: 1,
+    params: {
+      name: '',
+      desc: '',
+      budget,
+      water: 50,
+      larvae: 20,
+      bio: 20,
+      turns,
+      stormChance,
+      goalScore,
+      goalPollutionMax: null,
+      goalMinStats: null,
+      seed: null
+    },
+    cells
+  };
+}
+
+function parseV2Payload(payload) {
+  const name = typeof payload.n === 'string' ? payload.n : '';
+  const desc = typeof payload.d === 'string' ? payload.d : '';
+  const budget = validateNumber(payload.b, '初始预算', 0, 10000);
+  const water = validateNumber(payload.w, '初始水质', 0, 100);
+  const larvae = validateNumber(payload.l, '初始幼体', 0, 100);
+  const bio = validateNumber(payload.i, '初始多样性', 0, 100);
+  const turns = validateNumber(payload.t, '回合上限', 1, 30);
+  const stormChance = validateNumber(payload.s, '风暴概率', 0, 1, true);
+  const goalScore = validateNumber(payload.g, '目标评分', 0, 10000);
+  const goalPollutionMax = validateOptionalNumber(payload.gp, '污染上限', 0, GRID_SIZE);
+  const goalMinStats = validateOptionalNumber(payload.gm, '最低指标', 0, 100);
+  const seed = validateOptionalNumber(payload.r, '随机种子', 0, 2147483647);
+
+  if (typeof payload.c !== 'string') {
+    throw new Error('单元格编码格式错误：缺少单元格数据。');
+  }
+  const cells = decodeCells(payload.c);
+
+  return {
+    version: 2,
+    params: {
+      name,
+      desc,
+      budget,
+      water,
+      larvae,
+      bio,
+      turns,
+      stormChance,
+      goalScore,
+      goalPollutionMax,
+      goalMinStats,
+      seed
+    },
+    cells
+  };
+}
+
 export function parseChallengeCode(code) {
   if (!code || typeof code !== 'string') {
     throw new Error('挑战码为空，请输入一段挑战码。');
   }
 
   const trimmed = code.trim();
-  if (!trimmed.startsWith(CODE_PREFIX)) {
-    throw new Error(`挑战码格式错误：应以 "${CODE_PREFIX}" 开头，请确认是否复制完整。`);
+
+  let prefix;
+  if (trimmed.startsWith(CODE_PREFIX_V2)) {
+    prefix = CODE_PREFIX_V2;
+  } else if (trimmed.startsWith(CODE_PREFIX_V1)) {
+    prefix = CODE_PREFIX_V1;
+  } else {
+    throw new Error(`挑战码格式错误：应以 "${CODE_PREFIX_V1}" 或 "${CODE_PREFIX_V2}" 开头，请确认是否复制完整。`);
   }
 
-  const b64part = trimmed.slice(CODE_PREFIX.length);
+  const b64part = trimmed.slice(prefix.length);
   if (b64part.length === 0) {
     throw new Error('挑战码内容为空。');
   }
@@ -135,31 +260,10 @@ export function parseChallengeCode(code) {
   try {
     payload = JSON.parse(json);
   } catch (e) {
-    throw new Error('挑战码内容损坏：JSON 解析失败。');
+    throw new Error('挑战码内容损坏：JSON 解析失败，请确认挑战码是否完整。');
   }
 
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('挑战码内容损坏：不是有效对象。');
-  }
-
-  if (payload.v !== 1) {
-    throw new Error(`不支持的挑战码版本：${payload.v}。`);
-  }
-
-  const budget = validateNumber(payload.b, '初始预算', 0, 10000);
-  const turns = validateNumber(payload.t, '回合上限', 1, 30);
-  const stormChance = validateNumber(payload.s, '风暴概率', 0, 1, true);
-  const goalScore = validateNumber(payload.g, '目标评分', 0, 10000);
-
-  if (typeof payload.c !== 'string') {
-    throw new Error('单元格编码格式错误。');
-  }
-  const cells = decodeCells(payload.c);
-
-  return {
-    params: { budget, turns, stormChance, goalScore },
-    cells
-  };
+  return parsePayload(payload);
 }
 
 export function validateChallengeConfig(decoded) {
@@ -171,15 +275,35 @@ export function validateChallengeConfig(decoded) {
     errors.push('没有可修复区域：所有格子都被设置为污染。');
   }
 
-  if (params.budget === 0) {
-    errors.push('初始预算为0，无法放置任何设施。');
+  if (params.budget <= 0) {
+    errors.push('初始预算为0或负数，无法放置任何设施。');
   }
 
   const facilityCost = cells
     .filter(c => c.type !== 'empty')
     .reduce((sum, c) => sum + COSTS[c.type], 0);
   if (facilityCost > params.budget) {
-    errors.push(`初始设施花费(${facilityCost})超过初始预算(${params.budget})。`);
+    errors.push(`初始设施花费(${facilityCost})超过初始预算(${params.budget})，挑战无法开始。`);
+  }
+
+  if (params.water < 0 || params.water > 100) {
+    errors.push('初始水质超出范围（0 - 100）。');
+  }
+
+  if (params.larvae < 0 || params.larvae > 100) {
+    errors.push('初始幼体数量超出范围（0 - 100）。');
+  }
+
+  if (params.bio < 0 || params.bio > 100) {
+    errors.push('初始多样性超出范围（0 - 100）。');
+  }
+
+  if (params.goalPollutionMax != null && (params.goalPollutionMax < 0 || params.goalPollutionMax > GRID_SIZE)) {
+    errors.push(`污染上限超出范围（0 - ${GRID_SIZE}）。`);
+  }
+
+  if (params.goalMinStats != null && (params.goalMinStats < 0 || params.goalMinStats > 100)) {
+    errors.push('最低指标要求超出范围（0 - 100）。');
   }
 
   return errors;
@@ -195,19 +319,30 @@ export function buildChallengeScene(decoded) {
   const initialFacilities = cells.filter(c => c.type !== 'empty');
   const facilityCost = initialFacilities.reduce((sum, c) => sum + COSTS[c.type], 0);
 
+  const goalParts = [`生态评分 ≥ ${params.goalScore}`];
+  if (params.goalPollutionMax != null) {
+    goalParts.push(`污染 ≤ ${params.goalPollutionMax}格`);
+  }
+  if (params.goalMinStats != null) {
+    goalParts.push(`所有指标 ≥ ${params.goalMinStats}`);
+  }
+  const goalDesc = goalParts.join(' 且 ');
+
   const scene = {
     id: SANDBOX_SCENE_ID,
-    name: '挑战码场景',
-    desc: '通过分享挑战码加载的自定义修复挑战。',
+    name: params.name || '挑战码场景',
+    desc: params.desc || '通过分享挑战码加载的自定义修复挑战。',
     budget: params.budget - facilityCost,
-    water: 50,
-    larvae: 20,
-    bio: 20,
+    water: params.water,
+    larvae: params.larvae,
+    bio: params.bio,
     turns: params.turns,
     stormChance: params.stormChance,
     pollutionIndices: pollutionIndices,
     goalScore: params.goalScore,
-    goalDesc: `生态评分 ≥ ${params.goalScore}`,
+    goalPollutionMax: params.goalPollutionMax,
+    goalMinStats: params.goalMinStats,
+    goalDesc,
     tags: ['挑战码', '分享'],
     winText: '挑战成功！你完成了这段挑战码对应的修复任务。',
     loseText: '挑战失败，再接再厉，调整策略后重试吧！',
@@ -215,12 +350,29 @@ export function buildChallengeScene(decoded) {
     fromChallenge: true
   };
 
+  if (params.seed != null) {
+    scene.seed = params.seed;
+  }
+
   addScene(SANDBOX_SCENE_ID, scene);
   return scene;
 }
 
 export function applyDecodedToEditor(editorState, decoded) {
   editorState.cells = decoded.cells.map(c => ({ ...c }));
-  editorState.params = { ...decoded.params };
+  editorState.params = {
+    name: decoded.params.name || '',
+    desc: decoded.params.desc || '',
+    budget: decoded.params.budget,
+    water: decoded.params.water,
+    larvae: decoded.params.larvae,
+    bio: decoded.params.bio,
+    turns: decoded.params.turns,
+    stormChance: decoded.params.stormChance,
+    goalScore: decoded.params.goalScore,
+    goalPollutionMax: decoded.params.goalPollutionMax,
+    goalMinStats: decoded.params.goalMinStats,
+    seed: decoded.params.seed
+  };
   editorState.editTool = 'pollute';
 }

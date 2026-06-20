@@ -418,6 +418,7 @@ function formatChallengePreview(decoded) {
   const pileCount = facilities.filter(c => c.type === 'pile').length;
   const bufferCount = facilities.filter(c => c.type === 'buffer').length;
   const remainingBudget = decoded.params.budget - facilityCost;
+  const params = decoded.params;
 
   const validateErrors = validateChallengeConfig(decoded);
   let statusHtml = '';
@@ -434,13 +435,47 @@ function formatChallengePreview(decoded) {
   if (bufferCount > 0) facilityParts.push(`缓冲带 ${bufferCount}`);
   const facilityDesc = facilityParts.length > 0 ? facilityParts.join(' · ') : '无';
 
+  const goalParts = [`生态评分 ≥ ${params.goalScore}`];
+  if (params.goalPollutionMax != null) {
+    goalParts.push(`污染 ≤ ${params.goalPollutionMax}格`);
+  }
+  if (params.goalMinStats != null) {
+    goalParts.push(`所有指标 ≥ ${params.goalMinStats}`);
+  }
+  const goalDesc = goalParts.join(' 且 ');
+
+  let nameLine = '';
+  if (params.name) {
+    nameLine = `<div><strong>场景名称：</strong>${params.name}</div>`;
+  }
+  let descLine = '';
+  if (params.desc) {
+    descLine = `<div><strong>场景描述：</strong>${params.desc}</div>`;
+  }
+  let seedLine = '';
+  if (params.seed != null) {
+    seedLine = `<div><strong>随机种子：</strong>${params.seed}</div>`;
+  }
+  let versionLine = '';
+  if (decoded.version) {
+    const versionLabel = decoded.version === 2 ? 'ZC2（新格式）' : 'ZC1（兼容）';
+    versionLine = `<div><strong>编码版本：</strong>${versionLabel}</div>`;
+  }
+
   return `
-    <div><strong>预算：</strong>${decoded.params.budget}（初始设施花费 ${facilityCost}，剩余 ${remainingBudget}）</div>
-    <div><strong>回合：</strong>${decoded.params.turns} 潮</div>
-    <div><strong>风暴概率：</strong>${Math.round(decoded.params.stormChance * 100)}%</div>
-    <div><strong>目标评分：</strong>${decoded.params.goalScore}</div>
+    ${versionLine}
+    ${nameLine}
+    ${descLine}
+    <div><strong>预算：</strong>${params.budget}（初始设施花费 ${facilityCost}，剩余 ${remainingBudget}）</div>
+    <div><strong>初始水质：</strong>${params.water}</div>
+    <div><strong>初始幼体：</strong>${params.larvae}</div>
+    <div><strong>初始多样性：</strong>${params.bio}</div>
+    <div><strong>回合：</strong>${params.turns} 潮</div>
+    <div><strong>风暴概率：</strong>${Math.round(params.stormChance * 100)}%</div>
+    <div><strong>胜利条件：</strong>${goalDesc}</div>
     <div><strong>污染格：</strong>${pollutionCount} 格</div>
     <div><strong>初始设施：</strong>${facilityCount} 处（${facilityDesc}）</div>
+    ${seedLine}
     ${statusHtml}
   `;
 }
@@ -495,9 +530,20 @@ function handleStartChallenge() {
   }
 
   try {
-    buildChallengeScene(parsedChallenge);
-    startNewGame(SANDBOX_SCENE_ID);
+    const scene = buildChallengeScene(parsedChallenge);
+    const opts = {};
+    if (parsedChallenge.params.seed != null) {
+      opts.seed = parsedChallenge.params.seed;
+    }
+    game = createGameState(scene, opts);
+    currentSceneId = SANDBOX_SCENE_ID;
+    lastEventCount = game.replay.events.length;
+    updateSceneInfo(sceneInfoEl, scene.name);
     hideOverlay(sceneOverlay);
+    hideOverlay(overlay);
+    clearHighlights();
+    highlightedCells = [];
+    fullRender();
   } catch (e) {
     showChallengeError('启动场景失败：' + e.message);
   }
@@ -661,7 +707,7 @@ function bindEditorEvents() {
     };
   });
 
-  ['paramBudget', 'paramTurns', 'paramStorm', 'paramGoal'].forEach(id => {
+  ['paramName', 'paramDesc', 'paramBudget', 'paramWater', 'paramLarvae', 'paramBio', 'paramTurns', 'paramStorm', 'paramGoal', 'paramGoalPollutionMax', 'paramGoalMinStats', 'paramSeed'].forEach(id => {
     document.querySelector('#' + id).oninput = () => {
       const params = readParamsFromDOM();
       editorState.params = params;

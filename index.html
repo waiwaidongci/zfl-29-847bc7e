@@ -133,7 +133,7 @@
       <div class="challenge-import">
         <div class="challenge-import-label">📤 导入挑战码</div>
         <div class="challenge-import-row">
-          <input type="text" id="challengeInput" placeholder="粘贴以 ZC1: 开头的挑战码...">
+          <input type="text" id="challengeInput" placeholder="粘贴以 ZC1: 或 ZC2: 开头的挑战码...">
           <button id="challengeLoadBtn" class="secondary">解析</button>
           <button id="challengeStartBtn">开始挑战</button>
         </div>
@@ -188,9 +188,32 @@
         </div>
         <div class="editor-params">
           <div>
+            <label>场景名称</label>
+            <input type="text" id="paramName" placeholder="留空则使用默认名称" maxlength="30">
+          </div>
+          <div>
+            <label>场景描述</label>
+            <input type="text" id="paramDesc" placeholder="留空则使用默认描述" maxlength="100">
+          </div>
+          <div>
             <label>初始预算</label>
             <input type="number" id="paramBudget" value="120" min="0" step="10">
             <div class="param-help">建议范围：50 - 300</div>
+          </div>
+          <div>
+            <label>初始水质</label>
+            <input type="number" id="paramWater" value="50" min="0" max="100" step="5">
+            <div class="param-help">范围：0 - 100</div>
+          </div>
+          <div>
+            <label>初始幼体</label>
+            <input type="number" id="paramLarvae" value="20" min="0" max="100" step="5">
+            <div class="param-help">范围：0 - 100</div>
+          </div>
+          <div>
+            <label>初始多样性</label>
+            <input type="number" id="paramBio" value="20" min="0" max="100" step="5">
+            <div class="param-help">范围：0 - 100</div>
           </div>
           <div>
             <label>回合上限</label>
@@ -206,6 +229,21 @@
             <label>目标评分</label>
             <input type="number" id="paramGoal" value="50" min="0" step="5">
             <div class="param-help">达成此评分即修复成功</div>
+          </div>
+          <div>
+            <label>污染上限（可选）</label>
+            <input type="number" id="paramGoalPollutionMax" placeholder="留空不限" min="0" step="1">
+            <div class="param-help">最终污染格数上限</div>
+          </div>
+          <div>
+            <label>最低指标（可选）</label>
+            <input type="number" id="paramGoalMinStats" placeholder="留空不限" min="0" max="100" step="5">
+            <div class="param-help">所有指标最低值</div>
+          </div>
+          <div>
+            <label>随机种子（可选）</label>
+            <input type="number" id="paramSeed" placeholder="留空随机" min="0">
+            <div class="param-help">固定种子可复现同一局</div>
           </div>
           <div class="editor-preview">
             <h4>配置预览</h4>
