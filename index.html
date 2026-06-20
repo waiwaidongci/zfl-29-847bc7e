@@ -13,11 +13,11 @@
       <div>放置设施，控制污染，撑过潮汐周期。<span class="scene-info" id="sceneInfo"></span></div>
     </div>
     <div class="header-right">
-      <button id="dailyChallengeBtn" class="secondary daily-challenge-header-btn">🎯 每日挑战</button>
       <button id="leaderboardBtn" class="secondary">🏅 排行榜 <span class="lb-btn-badge">0</span></button>
-      <button id="achievementsBtn" class="secondary">🏆 成就 <span class="achievements-badge">0/25</span></button>
-      <button id="codexBtn" class="secondary">📖 图鉴 <span class="codex-badge">0/12</span></button>
+      <button id="achievementsBtn" class="secondary">🏆 成就 <span class="achievements-badge">0/21</span></button>
+      <button id="codexBtn" class="secondary">📖 图鉴 <span class="codex-badge">0/11</span></button>
       <button id="campaignBtn" class="secondary">⚔️ 战役</button>
+      <button id="simulatorBtn" class="secondary">🔮 策略模拟器</button>
       <button id="switchSceneBtn" class="secondary">切换场景</button>
       <button id="restartBtn">新开一局</button>
     </div>
@@ -29,10 +29,9 @@
         <button data-tool="oyster" class="active">牡蛎礁 - 12预算</button>
         <button data-tool="grass">海草床 - 10预算</button>
         <button data-tool="pile">围护桩 - 8预算</button>
-        <button data-tool="buffer">缓冲带 - 15预算</button>
         <button data-tool="erase" class="secondary">移除设施</button>
       </div>
-      <p>牡蛎礁提升水质，海草床提升多样性，围护桩减缓污染扩散，缓冲带降低风暴损毁。</p>
+      <p>牡蛎礁提升水质，海草床提升多样性，围护桩减缓污染扩散。</p>
       <button id="nextBtn">推进潮汐</button>
     </aside>
     <section class="panel">
@@ -58,7 +57,6 @@
   <div class="overlay hidden" id="achievementsOverlay"></div>
   <div class="overlay hidden" id="leaderboardOverlay"></div>
   <div class="overlay hidden" id="codexOverlay"></div>
-  <div class="overlay hidden" id="dailyChallengeOverlay"></div>
   <div class="overlay hidden" id="overlay">
     <div class="modal result-modal">
       <div class="result-tabs">
@@ -135,7 +133,7 @@
       <div class="challenge-import">
         <div class="challenge-import-label">📤 导入挑战码</div>
         <div class="challenge-import-row">
-          <input type="text" id="challengeInput" placeholder="粘贴以 ZC1: 或 ZC2: 开头的挑战码...">
+          <input type="text" id="challengeInput" placeholder="粘贴以 ZC1: 开头的挑战码...">
           <button id="challengeLoadBtn" class="secondary">解析</button>
           <button id="challengeStartBtn">开始挑战</button>
         </div>
@@ -165,6 +163,7 @@
   </div>
   <div class="overlay hidden" id="storyOverlay"></div>
   <div class="overlay hidden" id="campaignResultOverlay"></div>
+  <div class="overlay hidden" id="simulatorOverlay"></div>
   <div class="overlay hidden" id="editorOverlay">
     <div class="modal editor-modal">
       <h2>沙盒编辑器</h2>
@@ -181,7 +180,6 @@
           <button data-edit="oyster">初始：牡蛎礁 - 12</button>
           <button data-edit="grass">初始：海草床 - 10</button>
           <button data-edit="pile">初始：围护桩 - 8</button>
-          <button data-edit="buffer">初始：缓冲带 - 15</button>
           <button data-edit="erase" class="secondary">清除设施</button>
           <button data-edit="clearAll" class="secondary">清空全部</button>
         </div>
@@ -190,32 +188,9 @@
         </div>
         <div class="editor-params">
           <div>
-            <label>场景名称</label>
-            <input type="text" id="paramName" placeholder="留空则使用默认名称" maxlength="30">
-          </div>
-          <div>
-            <label>场景描述</label>
-            <input type="text" id="paramDesc" placeholder="留空则使用默认描述" maxlength="100">
-          </div>
-          <div>
             <label>初始预算</label>
             <input type="number" id="paramBudget" value="120" min="0" step="10">
             <div class="param-help">建议范围：50 - 300</div>
-          </div>
-          <div>
-            <label>初始水质</label>
-            <input type="number" id="paramWater" value="50" min="0" max="100" step="5">
-            <div class="param-help">范围：0 - 100</div>
-          </div>
-          <div>
-            <label>初始幼体</label>
-            <input type="number" id="paramLarvae" value="20" min="0" max="100" step="5">
-            <div class="param-help">范围：0 - 100</div>
-          </div>
-          <div>
-            <label>初始多样性</label>
-            <input type="number" id="paramBio" value="20" min="0" max="100" step="5">
-            <div class="param-help">范围：0 - 100</div>
           </div>
           <div>
             <label>回合上限</label>
@@ -231,21 +206,6 @@
             <label>目标评分</label>
             <input type="number" id="paramGoal" value="50" min="0" step="5">
             <div class="param-help">达成此评分即修复成功</div>
-          </div>
-          <div>
-            <label>污染上限（可选）</label>
-            <input type="number" id="paramGoalPollutionMax" placeholder="留空不限" min="0" step="1">
-            <div class="param-help">最终污染格数上限</div>
-          </div>
-          <div>
-            <label>最低指标（可选）</label>
-            <input type="number" id="paramGoalMinStats" placeholder="留空不限" min="0" max="100" step="5">
-            <div class="param-help">所有指标最低值</div>
-          </div>
-          <div>
-            <label>随机种子（可选）</label>
-            <input type="number" id="paramSeed" placeholder="留空随机" min="0">
-            <div class="param-help">固定种子可复现同一局</div>
           </div>
           <div class="editor-preview">
             <h4>配置预览</h4>

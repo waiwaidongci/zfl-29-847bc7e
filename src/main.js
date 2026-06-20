@@ -70,24 +70,13 @@ import {
   validateDraft,
   formatDraftPreview
 } from './editor/drafts.js';
-import { COSTS as FALLBACK_COSTS } from './game/constants.js';
-import { getFacilityCost, createRulesContext } from './game/rules-engine.js';
+import { COSTS } from './game/constants.js';
 import { seedFromString } from './game/seeded-random.js';
 import {
   loadLeaderboardState,
   addEntry,
-  getCategoryStats,
-  getBestComparison
+  getCategoryStats
 } from './game/leaderboard.js';
-import {
-  getTodayDailyChallenge,
-  getDailyChallengeByDate,
-  recordDailyChallengePlayed,
-  setDailyChallengeBestScore,
-  getDateStr,
-  isToday,
-  DAILY_CHALLENGE_SCENE_ID
-} from './game/daily-challenge.js';
 import {
   showLeaderboard,
   hideLeaderboard,
@@ -100,11 +89,9 @@ import {
   updateSceneInfo,
   showEditor as showEditorModal,
   hideEditor as hideEditorModal,
-  showOverlay,
   hideOverlay,
   bindResultTabSwitcher,
-  renderReplayView,
-  showDailyChallengeInfo
+  renderReplayView
 } from './ui/modals.js';
 import { getCampaign, getChapterByOrder } from './data/campaigns.js';
 import {
@@ -127,6 +114,7 @@ import {
   showCampaignResult,
   showCampaignSummary
 } from './ui/campaign.js';
+import { showSimulatorOverlay } from './ui/simulator.js';
 
 const gridEl = document.querySelector('#grid');
 const logEl = document.querySelector('#log');
@@ -163,8 +151,8 @@ const campaignOverlay = document.querySelector('#campaignOverlay');
 const campaignContentEl = document.querySelector('#campaignContent');
 const storyOverlay = document.querySelector('#storyOverlay');
 const campaignResultOverlay = document.querySelector('#campaignResultOverlay');
-const dailyChallengeBtn = document.querySelector('#dailyChallengeBtn');
-const dailyChallengeOverlay = document.querySelector('#dailyChallengeOverlay');
+const simulatorBtn = document.querySelector('#simulatorBtn');
+const simulatorOverlay = document.querySelector('#simulatorOverlay');
 
 const templateLibBtn = document.querySelector('#templateLibBtn');
 const draftBtn = document.querySelector('#draftBtn');
@@ -191,15 +179,10 @@ let lastEventCount = 0;
 let campaignProgress = null;
 let campaignCurrentSceneConfig = null;
 let currentTemplateCategory = 'pollution';
-let currentDailyChallengeDate = null;
-let isDailyChallengeMode = false;
 
 function getActiveScene() {
   if (game && game.gameMode === 'campaign' && campaignCurrentSceneConfig) {
     return campaignCurrentSceneConfig;
-  }
-  if (game && game.gameMode === 'daily' && currentDailyChallengeDate) {
-    return getDailyChallengeByDate(currentDailyChallengeDate);
   }
   return getScene(currentSceneId);
 }
@@ -261,7 +244,7 @@ function handleApplySuggestion(suggestion) {
   
   const targetIndices = suggestion.targetIndices || [suggestion.targetIndex];
   const tool = suggestion.type;
-  const toolCost = game.rules ? getFacilityCost(game.rules, tool) : FALLBACK_COSTS[tool];
+  const toolCost = COSTS[tool];
   
   let anyPlaced = false;
   for (const index of targetIndices) {
@@ -284,9 +267,6 @@ function handleApplySuggestion(suggestion) {
 
 function startNewGame(sceneId) {
   currentSceneId = sceneId;
-  isDailyChallengeMode = false;
-  currentDailyChallengeDate = null;
-
   const scene = getScene(sceneId);
 
   let seed = undefined;
@@ -302,31 +282,6 @@ function startNewGame(sceneId) {
   lastEventCount = game.replay.events.length;
   updateSceneInfo(sceneInfoEl, scene.name);
   hideOverlay(overlay);
-  clearHighlights();
-  highlightedCells = [];
-  fullRender();
-}
-
-function startDailyChallenge(dateStr) {
-  const challenge = getDailyChallengeByDate(dateStr);
-  if (!challenge) return;
-
-  isDailyChallengeMode = true;
-  currentDailyChallengeDate = dateStr;
-  currentSceneId = challenge.id;
-
-  recordDailyChallengePlayed(dateStr);
-
-  const scene = challenge;
-  const opts = { seed: scene.seed };
-
-  game = createGameState(scene, opts);
-
-  lastEventCount = game.replay.events.length;
-  updateSceneInfo(sceneInfoEl, `🎯 ${scene.displayName}`);
-  hideOverlay(overlay);
-  hideOverlay(sceneOverlay);
-  hideOverlay(dailyChallengeOverlay);
   clearHighlights();
   highlightedCells = [];
   fullRender();
@@ -357,33 +312,12 @@ function handleNextTurn() {
     if (newlyUnlocked.length > 0) {
       updateAchievementsButton(achievementsBtn);
     }
-    const lbResult = recordToLeaderboard(game, scene, result);
+    recordToLeaderboard(game, scene, result);
 
     if (game.gameMode === 'campaign') {
-      handleCampaignChapterEnd(result, lbResult);
-    } else if (game.gameMode === 'daily') {
-      const todayStr = getDateStr();
-      const isCurrentDayChallenge = isToday(game.dailyDate);
-      let title = result.title;
-      let text = result.text;
-
-      if (isCurrentDayChallenge) {
-        if (result.win) {
-          title = '🎉 每日挑战成功！';
-          text = `恭喜你完成了${game.dailyDate}的每日挑战！你可以继续重玩刷新最高分，或在排行榜查看历史成绩。`;
-        } else {
-          title = '💪 每日挑战失败';
-          text = `别灰心，调整策略后再试一次吧！你可以无限次重玩今日挑战。`;
-        }
-      } else {
-        title = `${result.win ? '✅' : '❌'} 历史每日挑战`;
-        text = `这是${game.dailyDate}的历史每日挑战。当前日期的挑战已更新，快去挑战今日的吧！`;
-      }
-
-      showResult(resultTitle, resultText, overlay, title, text, lbResult);
-      renderReplayView(game);
+      handleCampaignChapterEnd(result);
     } else {
-      showResult(resultTitle, resultText, overlay, result.title, result.text, lbResult);
+      showResult(resultTitle, resultText, overlay, result.title, result.text);
       renderReplayView(game);
     }
   }
@@ -401,8 +335,7 @@ function recordToLeaderboard(game, scene, result) {
   const pollution = game.cells.filter(c => c.polluted).length;
   const duration = game.startTime ? Date.now() - game.startTime : null;
 
-  const now = Date.now();
-  const currentEntry = {
+  addEntry({
     sceneId: scene.id,
     sceneName: scene.name,
     seed: game.seed,
@@ -413,22 +346,10 @@ function recordToLeaderboard(game, scene, result) {
     budget: game.budget,
     pollution,
     facilityCount,
-    duration,
-    recordedAt: now
-  };
-
-  if (game.gameMode === 'daily' && game.dailyDate) {
-    currentEntry.dailyDate = game.dailyDate;
-    setDailyChallengeBestScore(game.dailyDate, result.score);
-  }
-
-  const comparison = getBestComparison(scene.id, game.seed, currentEntry);
-
-  addEntry(currentEntry);
+    duration
+  });
 
   updateLeaderboardButton(leaderboardBtn);
-
-  return { comparison, currentEntry };
 }
 
 function handleSeedClick() {
@@ -456,32 +377,29 @@ function openSceneSelect() {
   challengeStartBtn.style.cursor = 'not-allowed';
   renderSceneList(sceneListEl, selectedSceneId, id => {
     selectedSceneId = id;
-    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect, openDailyChallengeInfo);
-  }, openDailyChallengeInfo);
+    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect);
+  });
   showSceneSelect(sceneOverlay, overlay);
 }
 
-function openDailyChallengeInfo() {
-  hideOverlay(sceneOverlay);
-  showDailyChallengeInfo(dailyChallengeOverlay, () => {
-    const todayStr = getDateStr();
-    startDailyChallenge(todayStr);
-  }, () => {
-    hideOverlay(dailyChallengeOverlay);
-    showOverlay(sceneOverlay);
-    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect, openDailyChallengeInfo);
-  });
-  showOverlay(dailyChallengeOverlay);
-}
-
-function openDailyChallengeDirect() {
-  const todayStr = getDateStr();
-  showDailyChallengeInfo(dailyChallengeOverlay, () => {
-    startDailyChallenge(todayStr);
-  }, () => {
-    hideOverlay(dailyChallengeOverlay);
-  });
-  showOverlay(dailyChallengeOverlay);
+function openSimulator() {
+  if (!game) {
+    openSceneSelect();
+    return;
+  }
+  if (game.ended) {
+    if (!confirm('当前对局已结束，是否重新开始当前场景以使用模拟器？')) return;
+    if (game.gameMode === 'campaign') {
+      startCampaignChapter(game.campaignId, game.campaignChapterOrder);
+    } else if (game.gameMode === 'daily' && currentDailyChallengeDate) {
+      startDailyChallenge(currentDailyChallengeDate);
+    } else {
+      startNewGame(currentSceneId);
+    }
+    return;
+  }
+  const scene = getActiveScene();
+  showSimulatorOverlay(simulatorOverlay, game, scene);
 }
 
 function clearChallengeError() {
@@ -504,89 +422,31 @@ function showChallengeGenError(message) {
   challengeGenErrorEl.classList.add('show');
 }
 
-function escapeHtml(str) {
-  if (str == null) return '';
-  const s = String(str);
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function formatChallengePreview(decoded) {
   const pollutionCount = decoded.cells.filter(c => c.polluted).length;
   const facilities = decoded.cells.filter(c => c.type !== 'empty');
   const facilityCount = facilities.length;
-  const tempRules = decoded.rules ? createRulesContext(decoded.rules) : null;
-  const facilityCost = facilities.reduce((sum, c) => {
-    const cost = tempRules ? getFacilityCost(tempRules, c.type) : FALLBACK_COSTS[c.type];
-    return sum + cost;
-  }, 0);
+  const facilityCost = facilities.reduce((sum, c) => sum + COSTS[c.type], 0);
   const oysterCount = facilities.filter(c => c.type === 'oyster').length;
   const grassCount = facilities.filter(c => c.type === 'grass').length;
   const pileCount = facilities.filter(c => c.type === 'pile').length;
-  const bufferCount = facilities.filter(c => c.type === 'buffer').length;
   const remainingBudget = decoded.params.budget - facilityCost;
-  const params = decoded.params;
 
   const validateErrors = validateChallengeConfig(decoded);
   let statusHtml = '';
   if (validateErrors.length > 0) {
-    statusHtml = `<div style="color:#c0392b; margin-top:6px;">⚠️ 警告：${escapeHtml(validateErrors.join('；'))}</div>`;
+    statusHtml = `<div style="color:#c0392b; margin-top:6px;">⚠️ 警告：${validateErrors.join('；')}</div>`;
   } else {
     statusHtml = `<div style="color:#237070; margin-top:6px;">✅ 配置有效，可以开始挑战。</div>`;
   }
 
-  const facilityParts = [];
-  if (oysterCount > 0) facilityParts.push(`牡蛎礁 ${oysterCount}`);
-  if (grassCount > 0) facilityParts.push(`海草床 ${grassCount}`);
-  if (pileCount > 0) facilityParts.push(`围护桩 ${pileCount}`);
-  if (bufferCount > 0) facilityParts.push(`缓冲带 ${bufferCount}`);
-  const facilityDesc = facilityParts.length > 0 ? facilityParts.join(' · ') : '无';
-
-  const goalParts = [`生态评分 ≥ ${escapeHtml(params.goalScore)}`];
-  if (params.goalPollutionMax != null) {
-    goalParts.push(`污染 ≤ ${escapeHtml(params.goalPollutionMax)}格`);
-  }
-  if (params.goalMinStats != null) {
-    goalParts.push(`所有指标 ≥ ${escapeHtml(params.goalMinStats)}`);
-  }
-  const goalDesc = goalParts.join(' 且 ');
-
-  let nameLine = '';
-  if (params.name) {
-    nameLine = `<div><strong>场景名称：</strong>${escapeHtml(params.name)}</div>`;
-  }
-  let descLine = '';
-  if (params.desc) {
-    descLine = `<div><strong>场景描述：</strong>${escapeHtml(params.desc)}</div>`;
-  }
-  let seedLine = '';
-  if (params.seed != null) {
-    seedLine = `<div><strong>随机种子：</strong>${escapeHtml(params.seed)}</div>`;
-  }
-  let versionLine = '';
-  if (decoded.version) {
-    const versionLabel = decoded.version === 2 ? 'ZC2（新格式）' : 'ZC1（兼容）';
-    versionLine = `<div><strong>编码版本：</strong>${versionLabel}</div>`;
-  }
-
   return `
-    ${versionLine}
-    ${nameLine}
-    ${descLine}
-    <div><strong>预算：</strong>${escapeHtml(params.budget)}（初始设施花费 ${escapeHtml(facilityCost)}，剩余 ${escapeHtml(remainingBudget)}）</div>
-    <div><strong>初始水质：</strong>${escapeHtml(params.water)}</div>
-    <div><strong>初始幼体：</strong>${escapeHtml(params.larvae)}</div>
-    <div><strong>初始多样性：</strong>${escapeHtml(params.bio)}</div>
-    <div><strong>回合：</strong>${escapeHtml(params.turns)} 潮</div>
-    <div><strong>风暴概率：</strong>${Math.round(params.stormChance * 100)}%</div>
-    <div><strong>胜利条件：</strong>${goalDesc}</div>
-    <div><strong>污染格：</strong>${escapeHtml(pollutionCount)} 格</div>
-    <div><strong>初始设施：</strong>${escapeHtml(facilityCount)} 处（${escapeHtml(facilityDesc)}）</div>
-    ${seedLine}
+    <div><strong>预算：</strong>${decoded.params.budget}（初始设施花费 ${facilityCost}，剩余 ${remainingBudget}）</div>
+    <div><strong>回合：</strong>${decoded.params.turns} 潮</div>
+    <div><strong>风暴概率：</strong>${Math.round(decoded.params.stormChance * 100)}%</div>
+    <div><strong>目标评分：</strong>${decoded.params.goalScore}</div>
+    <div><strong>污染格：</strong>${pollutionCount} 格</div>
+    <div><strong>初始设施：</strong>${facilityCount} 处（牡蛎礁 ${oysterCount} · 海草床 ${grassCount} · 围护桩 ${pileCount}）</div>
     ${statusHtml}
   `;
 }
@@ -641,20 +501,9 @@ function handleStartChallenge() {
   }
 
   try {
-    const scene = buildChallengeScene(parsedChallenge);
-    const opts = {};
-    if (parsedChallenge.params.seed != null) {
-      opts.seed = parsedChallenge.params.seed;
-    }
-    game = createGameState(scene, opts);
-    currentSceneId = SANDBOX_SCENE_ID;
-    lastEventCount = game.replay.events.length;
-    updateSceneInfo(sceneInfoEl, scene.name);
+    buildChallengeScene(parsedChallenge);
+    startNewGame(SANDBOX_SCENE_ID);
     hideOverlay(sceneOverlay);
-    hideOverlay(overlay);
-    clearHighlights();
-    highlightedCells = [];
-    fullRender();
   } catch (e) {
     showChallengeError('启动场景失败：' + e.message);
   }
@@ -818,7 +667,7 @@ function bindEditorEvents() {
     };
   });
 
-  ['paramName', 'paramDesc', 'paramBudget', 'paramWater', 'paramLarvae', 'paramBio', 'paramTurns', 'paramStorm', 'paramGoal', 'paramGoalPollutionMax', 'paramGoalMinStats', 'paramSeed'].forEach(id => {
+  ['paramBudget', 'paramTurns', 'paramStorm', 'paramGoal'].forEach(id => {
     document.querySelector('#' + id).oninput = () => {
       const params = readParamsFromDOM();
       editorState.params = params;
@@ -1096,7 +945,7 @@ function startCampaignChapter(campaignId, chapterOrder) {
   });
 }
 
-function handleCampaignChapterEnd(result, lbResult) {
+function handleCampaignChapterEnd(result) {
   const chapterOrder = game.campaignChapterOrder;
   const campaignId = game.campaignId;
   const campaign = getCampaign(campaignId);
@@ -1106,12 +955,7 @@ function handleCampaignChapterEnd(result, lbResult) {
     win: result.win,
     score: result.score,
     pollution: result.pollution,
-    budget: result.budget,
-    stormSurvived: result.stormSurvived,
-    stormDamaged: result.stormDamaged,
-    finalWater: result.finalWater,
-    finalLarvae: result.finalLarvae,
-    finalBio: result.finalBio
+    budget: result.budget
   });
   saveCampaignProgress(campaignProgress);
 
@@ -1120,12 +964,7 @@ function handleCampaignChapterEnd(result, lbResult) {
     win: result.win,
     score: result.score,
     pollution: result.pollution,
-    budget: result.budget,
-    stormSurvived: result.stormSurvived,
-    stormDamaged: result.stormDamaged,
-    finalWater: result.finalWater,
-    finalLarvae: result.finalLarvae,
-    finalBio: result.finalBio
+    budget: result.budget
   });
 
   showCampaignResult(campaignResultOverlay, result, chapter.name, isLastChapter, carryOver, {
@@ -1179,7 +1018,7 @@ function handleCampaignChapterEnd(result, lbResult) {
       game = null;
       openSceneSelect();
     }
-  }, game.replay, lbResult);
+  }, game.replay);
 }
 
 function openCampaignSelect() {
@@ -1227,8 +1066,6 @@ function bindGlobalEvents() {
   document.querySelector('#restartBtn').onclick = () => {
     if (game && game.gameMode === 'campaign') {
       startCampaignChapter(game.campaignId, game.campaignChapterOrder);
-    } else if (game && game.gameMode === 'daily' && currentDailyChallengeDate) {
-      startDailyChallenge(currentDailyChallengeDate);
     } else {
       startNewGame(currentSceneId);
     }
@@ -1236,8 +1073,6 @@ function bindGlobalEvents() {
   document.querySelector('#againBtn').onclick = () => {
     if (game && game.gameMode === 'campaign') {
       startCampaignChapter(game.campaignId, game.campaignChapterOrder);
-    } else if (game && game.gameMode === 'daily' && currentDailyChallengeDate) {
-      startDailyChallenge(currentDailyChallengeDate);
     } else {
       startNewGame(currentSceneId);
     }
@@ -1251,8 +1086,8 @@ function bindGlobalEvents() {
   leaderboardBtn.onclick = () => showLeaderboard(leaderboardOverlay);
   campaignBtn.onclick = openCampaignSelect;
   campaignOverlay.querySelector('.campaign-close-btn').onclick = () => hideCampaignOverlay(campaignOverlay);
-  dailyChallengeBtn.onclick = openDailyChallengeDirect;
   seedTextEl.onclick = handleSeedClick;
+  simulatorBtn.onclick = openSimulator;
 
   challengeLoadBtn.onclick = handleLoadChallenge;
   challengeStartBtn.onclick = handleStartChallenge;
