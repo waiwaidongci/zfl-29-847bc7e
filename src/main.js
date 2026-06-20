@@ -79,6 +79,15 @@ import {
   getBestComparison
 } from './game/leaderboard.js';
 import {
+  getTodayDailyChallenge,
+  getDailyChallengeByDate,
+  recordDailyChallengePlayed,
+  setDailyChallengeBestScore,
+  getDateStr,
+  isToday,
+  DAILY_CHALLENGE_SCENE_ID
+} from './game/daily-challenge.js';
+import {
   showLeaderboard,
   hideLeaderboard,
   updateLeaderboardButton
@@ -92,7 +101,8 @@ import {
   hideEditor as hideEditorModal,
   hideOverlay,
   bindResultTabSwitcher,
-  renderReplayView
+  renderReplayView,
+  showDailyChallengeInfo
 } from './ui/modals.js';
 import { getCampaign, getChapterByOrder } from './data/campaigns.js';
 import {
@@ -151,6 +161,8 @@ const campaignOverlay = document.querySelector('#campaignOverlay');
 const campaignContentEl = document.querySelector('#campaignContent');
 const storyOverlay = document.querySelector('#storyOverlay');
 const campaignResultOverlay = document.querySelector('#campaignResultOverlay');
+const dailyChallengeBtn = document.querySelector('#dailyChallengeBtn');
+const dailyChallengeOverlay = document.querySelector('#dailyChallengeOverlay');
 
 const templateLibBtn = document.querySelector('#templateLibBtn');
 const draftBtn = document.querySelector('#draftBtn');
@@ -177,10 +189,15 @@ let lastEventCount = 0;
 let campaignProgress = null;
 let campaignCurrentSceneConfig = null;
 let currentTemplateCategory = 'pollution';
+let currentDailyChallengeDate = null;
+let isDailyChallengeMode = false;
 
 function getActiveScene() {
   if (game && game.gameMode === 'campaign' && campaignCurrentSceneConfig) {
     return campaignCurrentSceneConfig;
+  }
+  if (game && game.gameMode === 'daily' && currentDailyChallengeDate) {
+    return getDailyChallengeByDate(currentDailyChallengeDate);
   }
   return getScene(currentSceneId);
 }
@@ -265,6 +282,9 @@ function handleApplySuggestion(suggestion) {
 
 function startNewGame(sceneId) {
   currentSceneId = sceneId;
+  isDailyChallengeMode = false;
+  currentDailyChallengeDate = null;
+
   const scene = getScene(sceneId);
 
   let seed = undefined;
@@ -280,6 +300,31 @@ function startNewGame(sceneId) {
   lastEventCount = game.replay.events.length;
   updateSceneInfo(sceneInfoEl, scene.name);
   hideOverlay(overlay);
+  clearHighlights();
+  highlightedCells = [];
+  fullRender();
+}
+
+function startDailyChallenge(dateStr) {
+  const challenge = getDailyChallengeByDate(dateStr);
+  if (!challenge) return;
+
+  isDailyChallengeMode = true;
+  currentDailyChallengeDate = dateStr;
+  currentSceneId = challenge.id;
+
+  recordDailyChallengePlayed(dateStr);
+
+  const scene = challenge;
+  const opts = { seed: scene.seed };
+
+  game = createGameState(scene, opts);
+
+  lastEventCount = game.replay.events.length;
+  updateSceneInfo(sceneInfoEl, `🎯 ${scene.displayName}`);
+  hideOverlay(overlay);
+  hideOverlay(sceneOverlay);
+  hideOverlay(dailyChallengeOverlay);
   clearHighlights();
   highlightedCells = [];
   fullRender();
@@ -314,6 +359,27 @@ function handleNextTurn() {
 
     if (game.gameMode === 'campaign') {
       handleCampaignChapterEnd(result, lbResult);
+    } else if (game.gameMode === 'daily') {
+      const todayStr = getDateStr();
+      const isCurrentDayChallenge = isToday(game.dailyDate);
+      let title = result.title;
+      let text = result.text;
+
+      if (isCurrentDayChallenge) {
+        if (result.win) {
+          title = '🎉 每日挑战成功！';
+          text = `恭喜你完成了${game.dailyDate}的每日挑战！你可以继续重玩刷新最高分，或在排行榜查看历史成绩。`;
+        } else {
+          title = '💪 每日挑战失败';
+          text = `别灰心，调整策略后再试一次吧！你可以无限次重玩今日挑战。`;
+        }
+      } else {
+        title = `${result.win ? '✅' : '❌'} 历史每日挑战`;
+        text = `这是${game.dailyDate}的历史每日挑战。当前日期的挑战已更新，快去挑战今日的吧！`;
+      }
+
+      showResult(resultTitle, resultText, overlay, title, text, lbResult);
+      renderReplayView(game);
     } else {
       showResult(resultTitle, resultText, overlay, result.title, result.text, lbResult);
       renderReplayView(game);
@@ -349,6 +415,11 @@ function recordToLeaderboard(game, scene, result) {
     recordedAt: now
   };
 
+  if (game.gameMode === 'daily' && game.dailyDate) {
+    currentEntry.dailyDate = game.dailyDate;
+    setDailyChallengeBestScore(game.dailyDate, result.score);
+  }
+
   const comparison = getBestComparison(scene.id, game.seed, currentEntry);
 
   addEntry(currentEntry);
@@ -383,9 +454,32 @@ function openSceneSelect() {
   challengeStartBtn.style.cursor = 'not-allowed';
   renderSceneList(sceneListEl, selectedSceneId, id => {
     selectedSceneId = id;
-    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect);
-  });
+    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect, openDailyChallengeInfo);
+  }, openDailyChallengeInfo);
   showSceneSelect(sceneOverlay, overlay);
+}
+
+function openDailyChallengeInfo() {
+  hideOverlay(sceneOverlay);
+  showDailyChallengeInfo(dailyChallengeOverlay, () => {
+    const todayStr = getDateStr();
+    startDailyChallenge(todayStr);
+  }, () => {
+    hideOverlay(dailyChallengeOverlay);
+    showOverlay(sceneOverlay);
+    renderSceneList(sceneListEl, selectedSceneId, handleSceneSelect, openDailyChallengeInfo);
+  });
+  showOverlay(dailyChallengeOverlay);
+}
+
+function openDailyChallengeDirect() {
+  const todayStr = getDateStr();
+  showDailyChallengeInfo(dailyChallengeOverlay, () => {
+    startDailyChallenge(todayStr);
+  }, () => {
+    hideOverlay(dailyChallengeOverlay);
+  });
+  showOverlay(dailyChallengeOverlay);
 }
 
 function clearChallengeError() {
@@ -1127,6 +1221,8 @@ function bindGlobalEvents() {
   document.querySelector('#restartBtn').onclick = () => {
     if (game && game.gameMode === 'campaign') {
       startCampaignChapter(game.campaignId, game.campaignChapterOrder);
+    } else if (game && game.gameMode === 'daily' && currentDailyChallengeDate) {
+      startDailyChallenge(currentDailyChallengeDate);
     } else {
       startNewGame(currentSceneId);
     }
@@ -1134,6 +1230,8 @@ function bindGlobalEvents() {
   document.querySelector('#againBtn').onclick = () => {
     if (game && game.gameMode === 'campaign') {
       startCampaignChapter(game.campaignId, game.campaignChapterOrder);
+    } else if (game && game.gameMode === 'daily' && currentDailyChallengeDate) {
+      startDailyChallenge(currentDailyChallengeDate);
     } else {
       startNewGame(currentSceneId);
     }
@@ -1147,6 +1245,7 @@ function bindGlobalEvents() {
   leaderboardBtn.onclick = () => showLeaderboard(leaderboardOverlay);
   campaignBtn.onclick = openCampaignSelect;
   campaignOverlay.querySelector('.campaign-close-btn').onclick = () => hideCampaignOverlay(campaignOverlay);
+  dailyChallengeBtn.onclick = openDailyChallengeDirect;
   seedTextEl.onclick = handleSeedClick;
 
   challengeLoadBtn.onclick = handleLoadChallenge;

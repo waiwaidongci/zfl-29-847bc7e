@@ -1,13 +1,15 @@
-import { getTopEntries, getCategoryStats, resetLeaderboard, getDistinctSceneIds } from '../game/leaderboard.js';
+import { getTopEntries, getCategoryStats, resetLeaderboard, getDistinctSceneIds, getDistinctDailyDates } from '../game/leaderboard.js';
 import { getAllScenes } from '../data/scenes.js';
 import { getAllCampaigns } from '../data/campaigns.js';
+import { formatDateDisplay, isToday } from '../game/daily-challenge.js';
 
 const MODE_META = {
   all: { label: '全部模式', icon: '📊' },
   standard: { label: '标准场景', icon: '🌊' },
   sandbox: { label: '自定义沙盒', icon: '🏗️' },
   challenge: { label: '挑战码导入', icon: '📤' },
-  campaign: { label: '战役模式', icon: '⚔️' }
+  campaign: { label: '战役模式', icon: '⚔️' },
+  daily: { label: '每日挑战', icon: '🎯' }
 };
 
 const RESULT_META = {
@@ -19,7 +21,8 @@ const RESULT_META = {
 let currentFilters = {
   gameMode: 'all',
   sceneId: 'all',
-  win: 'all'
+  win: 'all',
+  dailyDate: 'all'
 };
 
 export function showLeaderboard(overlayEl) {
@@ -82,6 +85,7 @@ function renderLeaderboardContent(overlayEl) {
             `).join('')}
           </div>
         </div>
+        ${currentFilters.gameMode === 'daily' ? renderDailyDateFilter() : ''}
         <div class="lb-filter-row">
           <div class="lb-filter-item">
             <div class="lb-filter-label">胜负结果</div>
@@ -92,12 +96,8 @@ function renderLeaderboardContent(overlayEl) {
             </select>
           </div>
           <div class="lb-filter-item">
-            <div class="lb-filter-label">具体场景</div>
-            <select class="lb-filter-select" data-filter="sceneId">
-              ${sceneOptions.map(s => `
-                <option value="${s.id}" ${currentFilters.sceneId === s.id ? 'selected' : ''}>${s.name}</option>
-              `).join('')}
-            </select>
+            <div class="lb-filter-label">${currentFilters.gameMode === 'daily' ? '选择日期' : '具体场景'}</div>
+            ${currentFilters.gameMode === 'daily' ? renderDailySceneSelect() : renderRegularSceneSelect(sceneOptions)}
           </div>
         </div>
       </div>
@@ -105,7 +105,7 @@ function renderLeaderboardContent(overlayEl) {
         ${renderEntryList(currentFilters)}
       </div>
       <div class="leaderboard-footer">
-        <div class="leaderboard-hint">同一种子下污染扩散、风暴触发和设施损毁结果一致，可输入种子重玩。同场景同种子仅保留最佳成绩。</div>
+        <div class="leaderboard-hint">同一种子下污染扩散、风暴触发和设施损毁结果一致，可输入种子重玩。同场景同种子仅保留最佳成绩。每日挑战每天0点自动更新，历史成绩可在"每日挑战"分类中查看。</div>
         <button class="secondary" id="lbResetBtn">清空记录</button>
       </div>
     </div>
@@ -116,6 +116,17 @@ function renderLeaderboardContent(overlayEl) {
   overlayEl.querySelectorAll('[data-filter="gameMode"] .lb-filter-btn').forEach(btn => {
     btn.onclick = () => {
       currentFilters.gameMode = btn.dataset.value;
+      if (currentFilters.gameMode !== 'daily') {
+        currentFilters.dailyDate = 'all';
+      }
+      renderLeaderboardContent(overlayEl);
+    };
+  });
+
+  const dailyDateBtns = overlayEl.querySelectorAll('[data-filter="dailyDate"] .lb-filter-btn');
+  dailyDateBtns.forEach(btn => {
+    btn.onclick = () => {
+      currentFilters.dailyDate = btn.dataset.value;
       renderLeaderboardContent(overlayEl);
     };
   });
@@ -142,6 +153,9 @@ function getFiltersForQuery(filters) {
   if (filters.win === 'win') q.win = true;
   else if (filters.win === 'lose') q.win = false;
   else q.win = 'all';
+  if (filters.dailyDate && filters.dailyDate !== 'all') {
+    q.dailyDate = filters.dailyDate;
+  }
   return q;
 }
 
@@ -182,11 +196,17 @@ function renderEntryRow(entry, rank) {
   const modeIcon = MODE_META[entry.gameMode] ? MODE_META[entry.gameMode].icon : '📌';
   const modeLabel = MODE_META[entry.gameMode] ? MODE_META[entry.gameMode].label : entry.gameMode;
 
+  let sceneDisplay = entry.sceneName;
+  if (entry.gameMode === 'daily' && entry.dailyDate) {
+    const dateLabel = isToday(entry.dailyDate) ? '今日' : formatDateDisplay(entry.dailyDate);
+    sceneDisplay = `${dateLabel} · ${entry.sceneName.replace(/每日挑战 · \d{4}-\d{2}-\d{2}/, '每日挑战')}`;
+  }
+
   return `
     <div class="lb-row${rankClass}">
       <div class="lb-col lb-rank">${rankDisplay}</div>
       <div class="lb-col lb-mode" title="${modeLabel}">${modeIcon}</div>
-      <div class="lb-col lb-scene">${entry.sceneName}</div>
+      <div class="lb-col lb-scene">${sceneDisplay}</div>
       <div class="lb-col lb-seed" title="种子: ${entry.seedStr}">${entry.seedStr}</div>
       <div class="lb-col lb-score">${entry.score}</div>
       <div class="lb-col lb-budget">${entry.budget}</div>
@@ -213,4 +233,55 @@ export function updateLeaderboardButton(btnEl) {
   if (badge) {
     badge.textContent = stats.all;
   }
+}
+
+function renderDailyDateFilter() {
+  const dates = getDistinctDailyDates();
+  if (dates.length === 0) return '';
+
+  return `
+    <div class="lb-filter-group">
+      <div class="lb-filter-label">历史每日挑战</div>
+      <div class="lb-filter-buttons" data-filter="dailyDate">
+        <button class="lb-filter-btn ${currentFilters.dailyDate === 'all' ? 'active' : ''}" data-value="all">
+          📅 全部日期
+        </button>
+        ${dates.slice(0, 14).map(date => `
+          <button class="lb-filter-btn ${currentFilters.dailyDate === date ? 'active' : ''}" data-value="${date}">
+            ${isToday(date) ? '🎯 今日' : formatDateDisplay(date)}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderDailySceneSelect() {
+  const dates = getDistinctDailyDates();
+  const options = [{ id: 'all', name: '全部日期' }];
+
+  for (const date of dates) {
+    options.push({
+      id: `daily-challenge-${date}`,
+      name: `${isToday(date) ? '🎯 今日' : formatDateDisplay(date)}`
+    });
+  }
+
+  return `
+    <select class="lb-filter-select" data-filter="sceneId">
+      ${options.map(s => `
+        <option value="${s.id}" ${currentFilters.sceneId === s.id ? 'selected' : ''}>${s.name}</option>
+      `).join('')}
+    </select>
+  `;
+}
+
+function renderRegularSceneSelect(sceneOptions) {
+  return `
+    <select class="lb-filter-select" data-filter="sceneId">
+      ${sceneOptions.map(s => `
+        <option value="${s.id}" ${currentFilters.sceneId === s.id ? 'selected' : ''}>${s.name}</option>
+      `).join('')}
+    </select>
+  `;
 }

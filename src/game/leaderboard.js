@@ -76,6 +76,9 @@ export function getEntries(filters) {
     if (filters.win != null && filters.win !== 'all') {
       result = result.filter(e => e.win === filters.win);
     }
+    if (filters.dailyDate && filters.dailyDate !== 'all') {
+      result = result.filter(e => e.dailyDate === filters.dailyDate);
+    }
   }
 
   return result.sort((a, b) => b.score - a.score);
@@ -132,11 +135,21 @@ export function resetLeaderboard() {
 }
 
 export function getCategoryStats() {
-  const stats = { standard: 0, sandbox: 0, challenge: 0, campaign: 0, all: entries.length };
+  const stats = { standard: 0, sandbox: 0, challenge: 0, campaign: 0, daily: 0, all: entries.length };
   for (const e of entries) {
     if (stats[e.gameMode] !== undefined) {
       stats[e.gameMode]++;
     }
   }
   return stats;
+}
+
+export function getDistinctDailyDates() {
+  const dates = new Set();
+  for (const e of entries) {
+    if (e.gameMode === 'daily' && e.dailyDate) {
+      dates.add(e.dailyDate);
+    }
+  }
+  return Array.from(dates).sort().reverse();
 }

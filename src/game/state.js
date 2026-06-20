@@ -79,6 +79,9 @@ export function createGameState(scene, options) {
   if (scene.id === 'sandbox') {
     gameMode = scene.fromChallenge ? 'challenge' : 'sandbox';
   }
+  if (scene.fromDailyChallenge) {
+    gameMode = 'daily';
+  }
   if (opts.campaignMode) {
     gameMode = 'campaign';
   }
@@ -96,6 +99,7 @@ export function createGameState(scene, options) {
     seedStr: seedToString(seed),
     rng,
     gameMode,
+    dailyDate: scene.dateStr || null,
     campaignProgress: opts.campaignProgress || null,
     campaignId: opts.campaignId || null,
     campaignChapterOrder: opts.campaignChapterOrder || null,
@@ -110,6 +114,7 @@ export function createGameState(scene, options) {
       seed,
       seedStr: seedToString(seed),
       gameMode,
+      dailyDate: scene.dateStr || null,
       snapshots: [{
         turn: 0,
         water: scene.water,

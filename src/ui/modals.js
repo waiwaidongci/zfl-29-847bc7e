@@ -1,10 +1,42 @@
 import { getAllScenes } from '../data/scenes.js';
 import { SANDBOX_EDITOR_ID, ICONS, GRID_COLS } from '../game/constants.js';
+import { getTodayDailyChallenge, formatDateDisplay, getDifficultyColor, getDailyChallengeBestScore } from '../game/daily-challenge.js';
 
 let currentReplayTurnIndex = 0;
 let currentReplayData = null;
 
-export function renderSceneList(sceneListEl, selectedSceneId, onSelect) {
+export function renderSceneList(sceneListEl, selectedSceneId, onSelect, onDailySelect) {
+  const todayChallenge = getTodayDailyChallenge();
+  const bestScore = getDailyChallengeBestScore(todayChallenge.dateStr);
+  const difficultyColor = getDifficultyColor(todayChallenge.difficulty);
+
+  const dailyCard = `
+    <div class="scene-card daily-challenge-card ${selectedSceneId === 'daily-challenge' ? 'selected' : ''}" data-id="daily-challenge" data-type="daily">
+      <div class="daily-challenge-header">
+        <h3>🎯 今日挑战</h3>
+        <span class="daily-challenge-date">${formatDateDisplay(todayChallenge.dateStr)}</span>
+      </div>
+      <div class="daily-challenge-difficulty" style="color:${difficultyColor}">
+        ${todayChallenge.difficultyIcon} ${todayChallenge.difficultyLabel}难度
+      </div>
+      <div class="desc">${todayChallenge.desc.split('\n')[0]}</div>
+      <div class="tags">
+        <span class="tag daily-tag">每日挑战</span>
+        <span class="tag">全服同图</span>
+        <span class="tag">${todayChallenge.difficultyLabel}</span>
+      </div>
+      <div class="daily-challenge-stats">
+        <div><strong>预算</strong> ${todayChallenge.budget}</div>
+        <div><strong>回合</strong> ${todayChallenge.turns}</div>
+        <div><strong>目标</strong> ${todayChallenge.goalScore}分</div>
+      </div>
+      ${bestScore !== null ? `<div class="daily-challenge-best">🏆 个人最佳：${bestScore}分</div>` : '<div class="daily-challenge-best">还未挑战，快来一试身手！</div>'}
+      <div class="daily-challenge-tip" style="margin-top:8px; font-size:11px; color:#6b7a78;">
+        💡 所有玩家今日挑战配置完全相同，跨天自动更新
+      </div>
+    </div>
+  `;
+
   const regularScenes = getAllScenes()
     .filter(s => s.id !== 'sandbox')
     .map(s => `
@@ -35,13 +67,105 @@ export function renderSceneList(sceneListEl, selectedSceneId, onSelect) {
     </div>
   `;
 
-  sceneListEl.innerHTML = regularScenes + sandboxCard;
+  sceneListEl.innerHTML = dailyCard + regularScenes + sandboxCard;
 
   sceneListEl.querySelectorAll('.scene-card').forEach(card => {
     card.onclick = () => {
-      onSelect(card.dataset.id);
+      const isDaily = card.dataset.type === 'daily';
+      if (isDaily && onDailySelect) {
+        onDailySelect();
+      } else {
+        onSelect(card.dataset.id);
+      }
     };
   });
+}
+
+export function showDailyChallengeInfo(overlayEl, onStart, onClose) {
+  const todayChallenge = getTodayDailyChallenge();
+  const difficultyColor = getDifficultyColor(todayChallenge.difficulty);
+
+  const pollutionCount = todayChallenge.initialCells.filter(c => c.polluted).length;
+  const facilities = todayChallenge.initialCells.filter(c => c.type !== 'empty');
+  const facilityCount = facilities.length;
+
+  overlayEl.innerHTML = `
+    <div class="modal daily-challenge-modal">
+      <div class="daily-challenge-info-header">
+        <div>
+          <h2>🎯 每日挑战</h2>
+          <div class="daily-challenge-info-date">${formatDateDisplay(todayChallenge.dateStr)}</div>
+        </div>
+        <button class="leaderboard-close secondary" id="dailyInfoCloseBtn">✕</button>
+      </div>
+      <div class="daily-challenge-info-difficulty" style="color:${difficultyColor}">
+        ${todayChallenge.difficultyIcon} ${todayChallenge.difficultyLabel}难度 · 挑战种子：${todayChallenge.seedStr}
+      </div>
+      <div class="daily-challenge-info-desc">
+        ${todayChallenge.desc.split('\n').map(line => `<p>${line}</p>`).join('')}
+      </div>
+      <div class="daily-challenge-info-grid">
+        <div class="daily-info-card">
+          <div class="daily-info-label">初始预算</div>
+          <div class="daily-info-value">${todayChallenge.budget}</div>
+        </div>
+        <div class="daily-info-card">
+          <div class="daily-info-label">回合数</div>
+          <div class="daily-info-value">${todayChallenge.turns} 潮</div>
+        </div>
+        <div class="daily-info-card">
+          <div class="daily-info-label">风暴概率</div>
+          <div class="daily-info-value">${Math.round(todayChallenge.stormChance * 100)}%</div>
+        </div>
+        <div class="daily-info-card">
+          <div class="daily-info-label">目标评分</div>
+          <div class="daily-info-value" style="color:#237070">≥ ${todayChallenge.goalScore}</div>
+        </div>
+        <div class="daily-info-card">
+          <div class="daily-info-label">污染格</div>
+          <div class="daily-info-value" style="color:#c0392b">${pollutionCount} 格</div>
+        </div>
+        <div class="daily-info-card">
+          <div class="daily-info-label">初始设施</div>
+          <div class="daily-info-value">${facilityCount} 处</div>
+        </div>
+      </div>
+      ${todayChallenge.goalPollutionMax != null ? `
+        <div class="daily-challenge-goal-extra">
+          <strong>额外条件：</strong>最终污染格 ≤ ${todayChallenge.goalPollutionMax}
+        </div>
+      ` : ''}
+      ${todayChallenge.goalMinStats != null ? `
+        <div class="daily-challenge-goal-extra">
+          <strong>额外条件：</strong>所有生态指标 ≥ ${todayChallenge.goalMinStats}
+        </div>
+      ` : ''}
+      <div class="daily-challenge-info-rules">
+        <h4>📋 挑战规则</h4>
+        <ul>
+          <li>所有玩家今日挑战配置完全相同（地图、预算、回合、目标一致）</li>
+          <li>每日0点自动更新挑战内容，跨天后将切换到新挑战</li>
+          <li>历史每日挑战成绩可在排行榜"每日挑战"分类中查看</li>
+          <li>同日期同种子仅保留个人最佳成绩</li>
+          <li>可无限次重玩挑战，争取最高分</li>
+        </ul>
+      </div>
+      <div class="daily-challenge-info-actions">
+        <button class="secondary" id="dailyInfoCancelBtn">返回场景选择</button>
+        <button id="dailyInfoStartBtn">🎯 开始今日挑战</button>
+      </div>
+    </div>
+  `;
+
+  overlayEl.querySelector('#dailyInfoCloseBtn').onclick = () => {
+    if (onClose) onClose();
+  };
+  overlayEl.querySelector('#dailyInfoCancelBtn').onclick = () => {
+    if (onClose) onClose();
+  };
+  overlayEl.querySelector('#dailyInfoStartBtn').onclick = () => {
+    if (onStart) onStart();
+  };
 }
 
 export function showOverlay(overlayEl) {
