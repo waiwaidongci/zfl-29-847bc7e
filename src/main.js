@@ -183,11 +183,15 @@ let parsedChallenge = null;
 let lastEventCount = 0;
 let campaignProgress = null;
 let campaignCurrentSceneConfig = null;
+let currentDailyChallenge = null;
 let currentTemplateCategory = 'pollution';
 
 function getActiveScene() {
   if (game && game.gameMode === 'campaign' && campaignCurrentSceneConfig) {
     return campaignCurrentSceneConfig;
+  }
+  if (game && game.gameMode === 'daily' && currentDailyChallenge) {
+    return currentDailyChallenge;
   }
   return getScene(currentSceneId);
 }
@@ -409,21 +413,19 @@ function startDailyChallenge(dateStr) {
 
   currentSceneId = challenge.id;
   currentDailyChallengeDate = dateStr;
-  game = createGameState({
-    scene: challenge,
-    seed: challenge.seed
-  });
+  currentDailyChallenge = challenge;
+  game = createGameState(challenge, { seed: challenge.seed });
   game.gameMode = 'daily';
   game.dailyDate = dateStr;
+  lastEventCount = game.replay.events.length;
 
   hideOverlay(sceneOverlay);
-  updateSceneInfo(sceneInfoEl, challenge);
-  renderToolButtons(currentTool);
-  renderGrid(game);
-  renderStats(game);
-  renderLog(game);
-  updateAdvisor();
+  hideOverlay(dailyInfoOverlay);
+  hideOverlay(overlay);
+  updateSceneInfo(sceneInfoEl, challenge.name);
   clearHighlights();
+  highlightedCells = [];
+  fullRender();
 }
 
 function openSimulator() {
