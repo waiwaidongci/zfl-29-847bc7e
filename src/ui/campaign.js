@@ -600,7 +600,7 @@ function renderCampaignReplayStats(snapshot) {
 
   const delta = (key) => {
     if (!prevSnapshot) return '';
-    const diff = snapshot[key] - prevSnapshot[key];
+    const diff = (snapshot[key] ?? 0) - (prevSnapshot[key] ?? 0);
     if (diff === 0) return '';
     const sign = diff > 0 ? '+' : '';
     const colorClass = diff > 0 ? 'delta-pos' : 'delta-neg';
